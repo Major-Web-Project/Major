@@ -30,7 +30,7 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     strictPort: true,
-    open: true
+    open: false // Disable auto-open in Codespaces
   },
   preview: {
     port: 4173,
@@ -41,4 +41,15 @@ export default defineConfig({
       '@': path.resolve(__dirname, './client/src'),
     },
   },
+  // Fix for crypto compatibility in Codespaces
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  },
+  // Additional Node.js polyfills for Codespaces
+  esbuild: {
+    target: 'node14'
+  }
 });

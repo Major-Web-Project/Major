@@ -9,7 +9,7 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     strictPort: true,
-    open: true
+    open: false // Disable auto-open in Codespaces
   },
   resolve: {
     alias: {
@@ -19,4 +19,15 @@ export default defineConfig({
   css: {
     postcss: './postcss.config.js',
   },
+  // Fix for crypto compatibility in Codespaces
+  define: {
+    global: 'globalThis',
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom']
+  },
+  // Additional Node.js polyfills for Codespaces
+  esbuild: {
+    target: 'node14'
+  }
 })
