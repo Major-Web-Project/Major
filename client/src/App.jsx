@@ -25,6 +25,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [aiTasksData, setAiTasksData] = useState([]);
   const [dashboardData, setDashboardData] = useState(null);
+  const [hasCompletedAssessment, setHasCompletedAssessment] = useState(false);
 
   // Make learning context available globally for AI chat
   useEffect(() => {
@@ -36,13 +37,45 @@ function App() {
   useEffect(() => {
     const handleNavigateToHome = () => setCurrentScreen('home');
     const handleNavigateToDashboard = () => setCurrentScreen('dashboard');
+    
+    // FIXED: Improved Learning Dashboard Navigation Logic
     const handleNavigateToLearningDashboard = () => {
-      if (learningData && learningData.completedTasks && learningData.completedTasks.length > 0) {
+      console.log('🔍 Learning Dashboard Navigation Check:', {
+        hasCompletedAssessment,
+        hasUserProfile: !!userProfile,
+        hasGoalData: !!goalData,
+        hasRoadmap: !!roadmap,
+        hasLearningData: !!(learningData && learningData.roadmap),
+        aiTasksDataLength: aiTasksData?.length || 0
+      });
+
+      // Check if user has completed the full learning setup process
+      const hasFullLearningSetup = userProfile && goalData && roadmap && 
+        (learningData.roadmap || aiTasksData?.length > 0);
+
+      if (hasFullLearningSetup) {
+        // User has completed assessment and setup - show AI learning dashboard
+        console.log('✅ Showing AI Learning Dashboard - user has completed setup');
         setCurrentScreen('learning-dashboard');
+      } else if (userProfile && goalData && roadmap) {
+        // User has profile and goal but no learning data yet - show roadmap to start learning
+        console.log('📋 Showing Roadmap - user needs to start learning');
+        setCurrentScreen('roadmap');
+      } else if (userProfile && goalData) {
+        // User has profile but no roadmap - shouldn't happen, but handle gracefully
+        console.log('⚠️ User has profile and goal but no roadmap - redirecting to goal setup');
+        setCurrentScreen('goal-setup');
+      } else if (userProfile) {
+        // User has completed assessment but no goal - go to goal setup
+        console.log('🎯 User has profile but no goal - redirecting to goal setup');
+        setCurrentScreen('goal-setup');
       } else {
+        // User hasn't completed assessment yet - start assessment
+        console.log('📝 No user profile - starting assessment');
         setCurrentScreen('assessment');
       }
     };
+
     const handleNavigateToTasks = () => setCurrentScreen('tasks');
     const handleNavigateToAbout = () => setCurrentScreen('about');
     const handleNavigateToAuth = () => setCurrentScreen('auth');
@@ -66,23 +99,38 @@ function App() {
       window.removeEventListener('navigateToAuth', handleNavigateToAuth);
       window.removeEventListener('navigateToAssessment', handleNavigateToAssessment);
     };
-  }, [learningData]);
+  }, [userProfile, goalData, roadmap, learningData, aiTasksData, hasCompletedAssessment]);
 
   const handleAssessmentComplete = (profile, responses) => {
+    console.log('✅ Assessment completed:', profile);
     setUserProfile(profile);
+    setHasCompletedAssessment(true);
     setCurrentScreen('goal-setup');
   };
 
   const handleGoalSetupComplete = (goal, generatedRoadmap) => {
+    console.log('✅ Goal setup completed:', { goal, generatedRoadmap });
     setGoalData(goal);
     setRoadmap(generatedRoadmap);
     setCurrentScreen('roadmap');
   };
 
   const handleStartLearning = (data) => {
-    setLearningData(data);
+    console.log('🚀 Starting learning with data:', data);
+    
+    // Update learning data with all necessary information
+    const updatedLearningData = {
+      ...learningData,
+      ...data,
+      roadmap: data.roadmap,
+      goalData: data.goalData,
+      userProfile: data.userProfile
+    };
+    
+    setLearningData(updatedLearningData);
     setIsAuthenticated(true);
     
+    // Generate initial AI tasks and dashboard data
     const initialTasks = aiAssistant.generateDailyTasks(
       data.roadmap,
       data.currentPhase || 1,
@@ -91,6 +139,7 @@ function App() {
     );
     setAiTasksData(initialTasks);
     
+    // Generate dashboard data with AI analytics
     const analytics = aiAssistant.getLearningAnalytics();
     setDashboardData({
       ...analytics,
@@ -99,6 +148,8 @@ function App() {
       userProfile: data.userProfile
     });
     
+    console.log('✅ Learning setup complete - redirecting to AI learning dashboard');
+    // Redirect to AI learning dashboard
     setCurrentScreen('learning-dashboard');
   };
 
