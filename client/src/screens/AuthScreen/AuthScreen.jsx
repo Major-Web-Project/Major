@@ -2,8 +2,9 @@ import React, { useState } from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 import { NavigationBarSection } from "../FrameScreen/sections/NavigationBarSection";
-import { mockApiService } from "../../data/mockData";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { toast } from "react-toastify";
 
 export const AuthScreen = () => {
   const navigate = useNavigate();
@@ -29,7 +30,7 @@ export const AuthScreen = () => {
 
     if (!formData.password) {
       newErrors.password = "Password is required";
-    } else if (formData.password.length < 8) {
+    } else if (formData.password.length < 4) {
       newErrors.password = "Password must be at least 8 characters";
     }
 
