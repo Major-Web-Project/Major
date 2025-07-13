@@ -1,17 +1,19 @@
-import React, { useState } from 'react';
-import { Card, CardContent } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { NavigationBarSection } from '../FrameScreen/sections/NavigationBarSection';
-import { mockApiService } from '../../data/mockData';
+import React, { useState } from "react";
+import { Card, CardContent } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { NavigationBarSection } from "../FrameScreen/sections/NavigationBarSection";
+import { mockApiService } from "../../data/mockData";
+import { useNavigate } from "react-router-dom";
 
 export const AuthScreen = () => {
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    name: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
     agreeToTerms: false,
   });
   const [errors, setErrors] = useState({});
@@ -20,30 +22,30 @@ export const AuthScreen = () => {
     const newErrors = {};
 
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = "Email is invalid";
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password is required";
+    } else if (formData.password.length < 8) {
+      newErrors.password = "Password must be at least 8 characters";
     }
 
     if (!isLogin) {
       if (!formData.name) {
-        newErrors.name = 'Name is required';
+        newErrors.name = "Name is required";
       }
 
       if (!formData.confirmPassword) {
-        newErrors.confirmPassword = 'Please confirm your password';
+        newErrors.confirmPassword = "Please confirm your password";
       } else if (formData.password !== formData.confirmPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
+        newErrors.confirmPassword = "Passwords do not match";
       }
 
       if (!formData.agreeToTerms) {
-        newErrors.agreeToTerms = 'You must agree to the terms and conditions';
+        newErrors.agreeToTerms = "You must agree to the terms and conditions";
       }
     }
 
@@ -60,57 +62,31 @@ export const AuthScreen = () => {
 
     setLoading(true);
 
-    try {
-      if (isLogin) {
-        const result = await mockApiService.login(
-          formData.email,
-          formData.password
+    if (isLogin) {
+      try {
+        const response = await axios.post(
+          "http://localhost:5000/api/auth/login", // Replace with your actual API endpoint
+          {
+            email: formData.email,
+            password: formData.password,
+          }
         );
-        console.log('Login successful:', result);
+        // Show toast with message from API response
+        toast.success(response.data.message || "Login successful!");
 
-        // Show success message
-        alert(`🎉 Welcome back, ${result.user.name}!
-
-✅ Login Successful
-📧 Email: ${result.user.email}
-🎓 Role: ${result.user.role}
-📚 Courses Enrolled: ${result.user.coursesEnrolled}
-⏰ Total Learning Hours: ${result.user.totalHoursLearned}h
-
-Redirecting to your dashboard...`);
-
-        // Navigate to dashboard
+        // Optionally, store token/user info, then navigate
         setTimeout(() => {
-          const dashboardEvent = new CustomEvent('navigateToDashboard');
-          window.dispatchEvent(dashboardEvent);
+          navigate("/dashboard"); // or your dashboard route
         }, 2000);
-      } else {
-        const result = await mockApiService.register(formData);
-        console.log('Registration successful:', result);
-
-        // Show success message
-        alert(`🎉 Welcome to Infinite Learning, ${formData.name}!
-
-✅ Account Created Successfully
-📧 Email: ${formData.email}
-🎁 Welcome Bonus: 7-day free trial
-📚 Access to all beginner courses
-🎯 Personalized learning path ready
-
-Check your email for verification link.
-Redirecting to your dashboard...`);
-
-        // Navigate to dashboard
-        setTimeout(() => {
-          const dashboardEvent = new CustomEvent('navigateToDashboard');
-          window.dispatchEvent(dashboardEvent);
-        }, 2000);
+      } catch (error) {
+        // Show error toast
+        toast.error(
+          error.response?.data?.message ||
+            "Authentication failed. Please try again."
+        );
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error('Authentication error:', error);
-      alert('❌ Authentication failed. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -118,62 +94,62 @@ Redirecting to your dashboard...`);
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
 
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors((prev) => ({
         ...prev,
-        [name]: '',
+        [name]: "",
       }));
     }
   };
 
   const features = [
     {
-      icon: '🤖',
-      title: 'AI-Powered Learning',
-      description: 'Personalized curriculum that adapts to your learning style',
+      icon: "🤖",
+      title: "AI-Powered Learning",
+      description: "Personalized curriculum that adapts to your learning style",
     },
     {
-      icon: '👨‍💼',
-      title: 'Expert Mentorship',
-      description: 'Get guidance from industry professionals',
+      icon: "👨‍💼",
+      title: "Expert Mentorship",
+      description: "Get guidance from industry professionals",
     },
     {
-      icon: '🚀',
-      title: 'Real Projects',
-      description: 'Build portfolio with actual industry projects',
+      icon: "🚀",
+      title: "Real Projects",
+      description: "Build portfolio with actual industry projects",
     },
     {
-      icon: '💼',
-      title: 'Career Support',
-      description: 'Job placement assistance and interview prep',
+      icon: "💼",
+      title: "Career Support",
+      description: "Job placement assistance and interview prep",
     },
   ];
 
   const testimonials = [
     {
-      name: 'Sarah Johnson',
-      role: 'Software Engineer at Google',
-      text: 'Infinite Learning transformed my career in just 6 months!',
+      name: "Sarah Johnson",
+      role: "Software Engineer at Google",
+      text: "Infinite Learning transformed my career in just 6 months!",
       avatar:
-        'https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=400',
+        "https://images.pexels.com/photos/415829/pexels-photo-415829.jpeg?auto=compress&cs=tinysrgb&w=400",
     },
     {
-      name: 'Michael Chen',
-      role: 'Data Scientist at Microsoft',
-      text: 'The AI-powered learning path was exactly what I needed.',
+      name: "Michael Chen",
+      role: "Data Scientist at Microsoft",
+      text: "The AI-powered learning path was exactly what I needed.",
       avatar:
-        'https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=400',
+        "https://images.pexels.com/photos/220453/pexels-photo-220453.jpeg?auto=compress&cs=tinysrgb&w=400",
     },
     {
-      name: 'Emily Rodriguez',
-      role: 'UX Designer at Apple',
+      name: "Emily Rodriguez",
+      role: "UX Designer at Apple",
       text: "Best investment I've made in my professional development.",
       avatar:
-        'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=400',
+        "https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=400",
     },
   ];
 
@@ -187,7 +163,7 @@ Redirecting to your dashboard...`);
           loop
           playsInline
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: 'brightness(0.3) contrast(1.2)' }}
+          style={{ filter: "brightness(0.3) contrast(1.2)" }}
         >
           <source
             src="https://videos.pexels.com/video-files/3129671/3129671-uhd_3840_2160_30fps.mp4"
@@ -273,15 +249,15 @@ Redirecting to your dashboard...`);
                   {/* Form Header */}
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <span className="text-3xl">{isLogin ? '🔐' : '🎓'}</span>
+                      <span className="text-3xl">{isLogin ? "🔐" : "🎓"}</span>
                     </div>
                     <h2 className="text-3xl font-bold text-white mb-2 font-poppins">
-                      {isLogin ? 'Welcome Back!' : 'Join Infinite Learning'}
+                      {isLogin ? "Welcome Back!" : "Join Infinite Learning"}
                     </h2>
                     <p className="text-gray-300">
                       {isLogin
-                        ? 'Sign in to continue your learning journey'
-                        : 'Start your transformation today'}
+                        ? "Sign in to continue your learning journey"
+                        : "Start your transformation today"}
                     </p>
                   </div>
 
@@ -291,8 +267,8 @@ Redirecting to your dashboard...`);
                       onClick={() => setIsLogin(true)}
                       className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
                         isLogin
-                          ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg'
-                          : 'text-gray-300 hover:text-white'
+                          ? "bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg"
+                          : "text-gray-300 hover:text-white"
                       }`}
                     >
                       Sign In
@@ -301,8 +277,8 @@ Redirecting to your dashboard...`);
                       onClick={() => setIsLogin(false)}
                       className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all duration-300 ${
                         !isLogin
-                          ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg'
-                          : 'text-gray-300 hover:text-white'
+                          ? "bg-gradient-to-r from-cyan-500 to-purple-500 text-white shadow-lg"
+                          : "text-gray-300 hover:text-white"
                       }`}
                     >
                       Sign Up
@@ -323,7 +299,7 @@ Redirecting to your dashboard...`);
                           value={formData.name}
                           onChange={handleInputChange}
                           className={`w-full p-4 bg-white/10 border rounded-xl text-white placeholder-gray-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                            errors.name ? 'border-red-500' : 'border-white/20'
+                            errors.name ? "border-red-500" : "border-white/20"
                           }`}
                           placeholder="Enter your full name"
                         />
@@ -346,7 +322,7 @@ Redirecting to your dashboard...`);
                         value={formData.email}
                         onChange={handleInputChange}
                         className={`w-full p-4 bg-white/10 border rounded-xl text-white placeholder-gray-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                          errors.email ? 'border-red-500' : 'border-white/20'
+                          errors.email ? "border-red-500" : "border-white/20"
                         }`}
                         placeholder="Enter your email"
                       />
@@ -368,7 +344,7 @@ Redirecting to your dashboard...`);
                         value={formData.password}
                         onChange={handleInputChange}
                         className={`w-full p-4 bg-white/10 border rounded-xl text-white placeholder-gray-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
-                          errors.password ? 'border-red-500' : 'border-white/20'
+                          errors.password ? "border-red-500" : "border-white/20"
                         }`}
                         placeholder="Enter your password"
                       />
@@ -392,8 +368,8 @@ Redirecting to your dashboard...`);
                           onChange={handleInputChange}
                           className={`w-full p-4 bg-white/10 border rounded-xl text-white placeholder-gray-400 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-400 ${
                             errors.confirmPassword
-                              ? 'border-red-500'
-                              : 'border-white/20'
+                              ? "border-red-500"
+                              : "border-white/20"
                           }`}
                           placeholder="Confirm your password"
                         />
@@ -417,14 +393,14 @@ Redirecting to your dashboard...`);
                             className="mt-1 w-5 h-5 text-cyan-500 bg-white/10 border-white/20 rounded focus:ring-cyan-400"
                           />
                           <span className="text-gray-300 text-sm leading-relaxed">
-                            I agree to the{' '}
+                            I agree to the{" "}
                             <a
                               href="#"
                               className="text-cyan-400 hover:underline"
                             >
                               Terms of Service
-                            </a>{' '}
-                            and{' '}
+                            </a>{" "}
+                            and{" "}
                             <a
                               href="#"
                               className="text-cyan-400 hover:underline"
@@ -450,12 +426,12 @@ Redirecting to your dashboard...`);
                       {loading ? (
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          {isLogin ? 'Signing In...' : 'Creating Account...'}
+                          {isLogin ? "Signing In..." : "Creating Account..."}
                         </div>
                       ) : isLogin ? (
-                        'Sign In'
+                        "Sign In"
                       ) : (
-                        'Create Account'
+                        "Create Account"
                       )}
                     </Button>
 
