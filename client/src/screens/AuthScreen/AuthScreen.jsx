@@ -88,6 +88,29 @@ export const AuthScreen = () => {
       } finally {
         setLoading(false);
       }
+    } else {
+      // Signup logic
+      try {
+        const response = await axios.post(
+          "http://localhost:5000/api/auth/signup",
+          {
+            username: formData.name,
+            email: formData.email,
+            password: formData.password,
+          }
+        );
+        toast.success(response.data.message || "Signup successful!");
+        setTimeout(() => {
+          navigate("/");
+        }, 2000);
+      } catch (error) {
+        toast.error(
+          error.response?.data?.message ||
+            "Registration failed. Please try again."
+        );
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
