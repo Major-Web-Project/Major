@@ -1,68 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
+import { Link } from "react-router-dom"; // Import Link from react-router-dom
 import {
   NavigationMenu,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-} from '../../../../components/ui/navigation-menu';
+} from "../../../../components/ui/navigation-menu";
 
 export const NavigationBarSection = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const navItems = [
     {
-      label: 'Home',
-      href: '#home',
-      icon: '🏠',
-      onClick: () => {
-        const homeEvent = new CustomEvent('navigateToHome');
-        window.dispatchEvent(homeEvent);
-      },
+      label: "Home",
+      to: "/", // Change href to to
     },
     {
-      label: 'Dashboard',
-      href: '#dashboard',
-      icon: '📊',
-      onClick: () => {
-        const dashboardEvent = new CustomEvent('navigateToDashboard');
-        window.dispatchEvent(dashboardEvent);
-      },
+      label: "Dashboard",
+      to: "/dashboard", // Change href to to
     },
     {
-      label: 'Learning Dashboard',
-      href: '#learning-dashboard',
-      icon: '🤖',
-      onClick: () => {
-        const learningDashboardEvent = new CustomEvent('navigateToLearningDashboard');
-        window.dispatchEvent(learningDashboardEvent);
-      },
+      label: "Learning Dashboard",
+      to: "/learning-dashboard", // Change href to to
     },
     {
-      label: 'Tasks',
-      href: '#tasks',
-      icon: '✅',
-      onClick: () => {
-        const tasksEvent = new CustomEvent('navigateToTasks');
-        window.dispatchEvent(tasksEvent);
-      },
+      label: "Tasks",
+      to: "/tasks", // Change href to to
     },
     {
-      label: 'About',
-      href: '#about',
-      icon: 'ℹ️',
-      onClick: () => {
-        const aboutEvent = new CustomEvent('navigateToAbout');
-        window.dispatchEvent(aboutEvent);
-      },
+      label: "About",
+      to: "/about", // Change href to to
     },
     {
-      label: 'Sign up / Login',
-      href: '#auth',
-      icon: '🔐',
-      onClick: () => {
-        const authEvent = new CustomEvent('navigateToAuth');
-        window.dispatchEvent(authEvent);
-      },
+      label: "Sign up / Login",
+      to: "/auth", // Change href to to
     },
   ];
 
@@ -121,29 +92,30 @@ export const NavigationBarSection = () => {
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="lg:hidden w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-white hover:bg-white/20 transition-colors duration-300"
         >
-          <span className="text-xl">{isMenuOpen ? '✕' : '☰'}</span>
+          <span className="text-xl">{isMenuOpen ? "✕" : "☰"}</span>
         </button>
       </div>
 
       {/* Navigation Menu */}
       <div
         className={`${
-          isMenuOpen ? 'flex' : 'hidden'
+          isMenuOpen ? "flex" : "hidden"
         } lg:flex flex-col lg:flex-row items-center w-full lg:w-auto mt-4 lg:mt-0`}
       >
         <NavigationMenu className="max-w-none">
           <NavigationMenuList className="flex flex-col lg:flex-row items-center gap-2 lg:gap-6 w-full lg:w-auto">
             {navItems.map((item, index) => (
               <NavigationMenuItem key={index} className="w-full lg:w-auto">
-                <NavigationMenuLink
-                  href={item.href}
-                  onClick={item.onClick}
-                  className="flex items-center gap-2 font-medium text-gray-300 hover:text-cyan-400 hover:scale-105 transition-all duration-300 text-base lg:text-lg px-4 py-3 lg:py-2 rounded-xl hover:bg-white/10 font-inter w-full lg:w-auto justify-center lg:justify-start group cursor-pointer"
-                >
-                  <span className="text-lg group-hover:scale-125 transition-transform duration-300">
-                    {item.icon}
-                  </span>
-                  {item.label}
+                <NavigationMenuLink asChild>
+                  <Link
+                    to={item.to}
+                    className="flex items-center gap-2 font-medium text-gray-300 hover:text-cyan-400 hover:scale-105 transition-all duration-300 text-base lg:text-lg px-4 py-3 lg:py-2 rounded-xl hover:bg-white/10 font-inter w-full lg:w-auto justify-center lg:justify-start group cursor-pointer"
+                  >
+                    <span className="text-lg group-hover:scale-125 transition-transform duration-300">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
                 </NavigationMenuLink>
               </NavigationMenuItem>
             ))}
