@@ -136,7 +136,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     }
   };
 
-  const handleStatusChange = (taskId, newStatus) => {
+  const handleStatusChange = async (taskId, newStatus) => {
     const updatedData = [...reports];
     const reportIndex = selectedDate;
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
@@ -144,7 +144,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     );
 
     if (taskIndex !== -1) {
-      updatedData[reportIndex].tasks[taskIndex] = {
+      const updatedTask = {
         ...updatedData[reportIndex].tasks[taskIndex],
         status: newStatus,
         completionTime:
@@ -152,7 +152,16 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
             ? new Date().toLocaleTimeString()
             : undefined,
       };
+      updatedData[reportIndex].tasks[taskIndex] = updatedTask;
       setData(updatedData);
+      // Call backend API to update task status
+      try {
+        await apiService.updateTask(taskId, updatedTask);
+        if (onTaskCreated) onTaskCreated();
+      } catch (error) {
+        alert('Failed to update task status. Please try again.');
+        console.error(error);
+      }
     }
   };
 
@@ -506,12 +515,14 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                           >
                             {expandedTask === task.id ? 'Hide' : 'Details'}
                           </Button>
-                          <Button
-                            onClick={() => handleEditTask(task)}
-                      className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
-                          >
-                            Edit
-                          </Button>
+                          {task.status !== 'completed' && (
+                            <Button
+                              onClick={() => handleEditTask(task)}
+                              className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
+                            >
+                              Edit
+                            </Button>
+                          )}
                   </>
                 )}
               </div>
@@ -672,12 +683,14 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                     >
                       {expandedTask === task.id ? 'Hide' : 'Details'}
                     </Button>
-                            <Button
-                              onClick={() => handleEditTask(task)}
-                      className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
-                            >
-                              Edit
-                            </Button>
+                    {task.status !== 'completed' && (
+                      <Button
+                        onClick={() => handleEditTask(task)}
+                        className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
+                      >
+                        Edit
+                      </Button>
+                    )}
                   </>
                 )}
               </div>

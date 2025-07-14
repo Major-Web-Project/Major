@@ -3,8 +3,16 @@ import React from 'react';
 export const WeeklyActivityChart = ({ data }) => {
   const maxValue = 100; // Fixed max value for consistent scaling
 
-  // Right rotate the array by one: move the first element to the end
-  const rotatedData = data.length > 0 ? [...data.slice(1), data[0]] : data;
+  // Rotate the array so today is always rightmost
+  let rotatedData = data;
+  if (data && data.length > 0) {
+    const today = new Date();
+    const todayLabel = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][today.getDay()];
+    const todayIndex = data.findIndex(item => item.day === todayLabel);
+    if (todayIndex !== -1) {
+      rotatedData = [...data.slice(todayIndex + 1), ...data.slice(0, todayIndex + 1)];
+    }
+  }
 
   const today = new Date();
 
@@ -39,7 +47,7 @@ export const WeeklyActivityChart = ({ data }) => {
       {/* Chart Container */}
       <div className="relative bg-sky-100/50 rounded-xl p-6 border border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
         {/* Y-axis labels */}
-        <div className="absolute left-2 top-4 bottom-16 flex flex-col gap-y-4 text-sky-600 text-xs dark:text-gray-400">
+        <div className="absolute left-2 top-4 bottom-16 flex flex-col gap-y-4 text-neutral-700 text-xs dark:text-gray-400">
           <span>100%</span>
           <span>80%</span>
           <span>60%</span>
@@ -54,7 +62,7 @@ export const WeeklyActivityChart = ({ data }) => {
             {[0, 20, 40, 60, 80, 100].map((value) => (
               <div
                 key={value}
-                className="absolute w-full border-t border-sky-300/50 dark:border-gray-600/30"
+                className="absolute w-full border-t border-neutral-600"
                 style={{ bottom: `${value}%` }}
               />
             ))}
@@ -70,12 +78,12 @@ export const WeeklyActivityChart = ({ data }) => {
               <div
                 key={item.day + (item.date || index)}
                 className={`flex flex-col items-center gap-3 flex-1 bottom-2 relative
-                  ${isToday ? 'bg-yellow-100 dark:bg-yellow-900/30 rounded-xl shadow-lg border-2 border-yellow-400/70 z-20' : ''}
+                  ${isToday ? 'border-2 border-black dark:border-white shadow-[0_0_0_4px_rgba(128,128,128,0.15)] dark:shadow-[0_0_0_4px_rgba(128,128,128,0.25)] rounded-xl z-20' : ''}
                   ${isLast && !isToday ? 'z-10' : ''}`}
               >
                 {isLast && !isToday && (
                   <div
-                    className="absolute left-0 right-0 -top-4 -bottom-4 rounded-xl border-2 border-sky-400 pointer-events-none"
+                    className="absolute left-0 right-0 -top-4 -bottom-4 rounded-xl border-2 border-black dark:border-white pointer-events-none shadow-[0_0_16px_rgba(0,0,0,0.22)] dark:shadow-[0_0_16px_rgba(255,255,255,0.18)]"
                     style={{ boxSizing: 'border-box' }}
                   />
                 )}

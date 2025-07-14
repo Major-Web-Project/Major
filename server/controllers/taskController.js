@@ -3,21 +3,14 @@ import WeeklyActivity from "../models/WeeklyActivity.js";
 
 function getLast7Days() {
   const days = [];
-  // Force IST (UTC+5:30)
   const now = new Date();
-  const IST_OFFSET = 330; // 5 hours 30 minutes
-  // Convert now to IST
-  const istNow = new Date(
-    now.getTime() + (IST_OFFSET - now.getTimezoneOffset()) * 60000
-  );
+  // Use UTC for day boundaries
   const today = new Date(
-    istNow.getFullYear(),
-    istNow.getMonth(),
-    istNow.getDate()
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   );
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
-    d.setDate(today.getDate() - i);
+    d.setUTCDate(today.getUTCDate() - i);
     days.push(d);
   }
   // Debug: print the last day
@@ -44,8 +37,8 @@ async function calculateAndStoreWeeklyActivity(userId) {
   const days = getLast7Days();
   const nextDay = (date) => {
     const d = new Date(date);
-    d.setDate(d.getDate() + 1);
-    d.setHours(0, 0, 0, 0);
+    d.setUTCDate(d.getUTCDate() + 1);
+    d.setUTCHours(0, 0, 0, 0);
     return d;
   };
 
@@ -82,6 +75,9 @@ async function calculateAndStoreWeeklyActivity(userId) {
       date: dayStart.toISOString(),
       goal: 100,
       completed: pct,
+      hasTasks: dayTotal > 0, // for frontend to optionally gray out days with no tasks
+      totalTasks: dayTotal,
+      completedTasks: dayCompleted,
     });
 
     totalTasks += dayTotal;
@@ -101,7 +97,11 @@ async function calculateAndStoreWeeklyActivity(userId) {
 
   // Calculate streak (consecutive days with 100% completion, ending with today)
   for (let i = 6; i >= 0; i--) {
-    if (dayStats[i].completed === 100 && dayStats[i].goal === 100) {
+    if (
+      dayStats[i].completed === 100 &&
+      dayStats[i].goal === 100 &&
+      dayStats[i].hasTasks
+    ) {
       streak++;
     } else {
       break;
@@ -171,16 +171,19 @@ export const getTasks = async (req, res) => {
 // Update a task
 export const updateTask = async (req, res) => {
   try {
-    const { data } = req.body;
-    const task = await Task.findOneAndUpdate(
-      { _id: req.params.id, user: req.user._id },
-      { data },
-      { new: true }
-    );
+    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
     if (!task)
       return res
         .status(404)
         .json({ success: false, message: "Task not found" });
+    if (task.data.status === "completed")
+      return res
+        .status(400)
+        .json({ success: false, message: "Cannot edit a completed task" });
+
+    const { data } = req.body;
+    task.data = data;
+    await task.save();
     await calculateAndStoreWeeklyActivity(req.user._id);
     res.json({ success: true, task });
   } catch (error) {

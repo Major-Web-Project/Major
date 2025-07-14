@@ -31,6 +31,11 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
   const [weeklyActivity, setWeeklyActivity] = useState(null);
   const navigate = useNavigate();
 
+  const fetchWeeklyActivity = async () => {
+    const weeklyRes = await apiService.getWeeklyActivity();
+    setWeeklyActivity(weeklyRes.data.activities[0] || null);
+  };
+
   const fetchAndGroupTasks = async () => {
     const tasksRes = await apiService.getTasks();
     const grouped = groupTasksByDate(tasksRes.data.tasks || []);
@@ -48,8 +53,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
         setUser(res.data.user);
         await fetchAndGroupTasks();
         // Fetch weekly activity
-        const weeklyRes = await apiService.getWeeklyActivity();
-        setWeeklyActivity(weeklyRes.data.activities[0] || null);
+        await fetchWeeklyActivity();
 
         // Initialize AI assistant if user profile exists
         if (userProfile) {
@@ -102,12 +106,14 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
     }
   };
 
+  // Calculate total and completed tasks for the week
+  const totalTasksThisWeek = (weeklyActivity?.days || []).reduce((sum, day) => sum + (day.totalTasks || 0), 0);
+  const completedTasksThisWeek = (weeklyActivity?.days || []).reduce((sum, day) => sum + (day.completedTasks || 0), 0);
+
+  // Only show days with tasks in the chart
+  const weeklyActivityDataWithTasks = (weeklyActivity?.days || []).filter(day => day.hasTasks);
+
   // Defensive defaults for dashboard data
-  const weeklyActivityData = (weeklyActivity?.days || [])
-    .map(day => ({
-      ...day,
-      goal: typeof day.goal === 'number' ? day.goal : 100
-    }));
   const backendStreak = weeklyActivity?.streak ?? 0;
   const backendBestDay = weeklyActivity?.bestDay ?? 'N/A';
   const backendAvgGoal = weeklyActivity?.avgGoal ?? 100;
@@ -119,6 +125,9 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
   const totalTasks = dashboard?.totalTasks ?? 0;
   const completedTasks = dashboard?.completedTasks ?? 0;
   const pendingTasks = dashboard?.pendingTasks ?? 0;
+
+  // Debug: log the weekly activity days
+  console.log('WeeklyActivity days:', weeklyActivity?.days || []);
 
   if (loading) {
     return (
@@ -347,9 +356,9 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                           This Week
                         </div>
                         <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                          {weeklyActivityData.length
+                          {weeklyActivityDataWithTasks.length
                             ? Math.round(
-                                weeklyActivityData.reduce((acc, day) => acc + day.completed, 0) / weeklyActivityData.length
+                                weeklyActivityDataWithTasks.reduce((acc, day) => acc + day.completed, 0) / weeklyActivityDataWithTasks.length
                               )
                             : 0
                           }
@@ -361,16 +370,13 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                           Goal Achievement
                         </div>
                         <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                          {weeklyActivityData.length
-                            ? weeklyActivityData.filter((day) => day.completed >= day.goal).length
-                            : 0}
-                          /7
+                          {completedTasksThisWeek}/{totalTasksThisWeek || 1}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <WeeklyActivityChart data={weeklyActivityData} />
+                  <WeeklyActivityChart data={weeklyActivity?.days || []} />
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -446,7 +452,14 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                   Daily Report
                 </h2>
-                <DailyReportTable data={dailyReport} setData={setDailyReport} onTaskCreated={fetchAndGroupTasks} />
+                <DailyReportTable
+                  data={dailyReport}
+                  setData={setDailyReport}
+                  onTaskCreated={() => {
+                    fetchAndGroupTasks();
+                    fetchWeeklyActivity();
+                  }}
+                />
               </CardContent>
             </Card>
           </div>

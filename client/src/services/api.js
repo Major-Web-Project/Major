@@ -204,6 +204,16 @@ export const apiService = {
       return { data: { activities: [] } };
     }
   },
+
+  // Update a task by ID
+  updateTask: async (taskId, data) => {
+    try {
+      return await api.put(`/tasks/${taskId}`, { data });
+    } catch (error) {
+      console.warn("Task update failed");
+      return Promise.reject(error);
+    }
+  },
 };
 
 export default api;
