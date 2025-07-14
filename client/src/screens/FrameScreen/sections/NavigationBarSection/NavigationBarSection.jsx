@@ -7,6 +7,7 @@ import {
   NavigationMenuList,
 } from "../../../../components/ui/navigation-menu";
 import { useTheme } from "../../../../lib/ThemeContext";
+import { apiService } from "../../../../services/api.js";
 
 export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -14,26 +15,39 @@ export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) =>
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
 
+  // Password change form state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
   const navItems = [
     {
       label: "Home",
       to: "/", // Change href to to
     },
+    // Only show Dashboard and Tasks if authenticated
+    ...(isAuthenticated ? [
     {
       label: "Dashboard",
-      to: "/dashboard", // Change href to to
+        to: "/dashboard",
+      },
+      {
+        label: "Tasks",
+        to: "/tasks",
     },
+    ] : []),
     {
       label: "Learning Dashboard",
-      to: "/learning-dashboard", // Change href to to
-    },
-    {
-      label: "Tasks",
-      to: "/tasks", // Change href to to
+      to: "/learning-dashboard",
     },
     {
       label: "About",
-      to: "/about", // Change href to to
+      to: "/about",
     },
   ];
 
@@ -45,89 +59,155 @@ export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) =>
     });
   }
 
+  // Handle password form input changes
+  const handlePasswordInputChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear errors when user starts typing
+    if (passwordError) setPasswordError('');
+    if (passwordSuccess) setPasswordSuccess('');
+  };
+
+  // Handle password change submission
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    
+    // Validate form
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setPasswordError('All fields are required');
+      return;
+    }
+
+    if (passwordForm.newPassword.length < 6) {
+      setPasswordError('New password must be at least 6 characters long');
+      return;
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    try {
+      const response = await apiService.changePassword(
+        passwordForm.currentPassword,
+        passwordForm.newPassword
+      );
+
+      if (response.data.success) {
+        setPasswordSuccess('Password changed successfully!');
+        setPasswordForm({
+          currentPassword: '',
+          newPassword: '',
+          confirmPassword: '',
+        });
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setPasswordSuccess('');
+        }, 3000);
+      }
+    } catch (error) {
+      if (error.response?.data?.message) {
+        setPasswordError(error.response.data.message);
+      } else {
+        setPasswordError('Failed to change password. Please try again.');
+      }
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
+
   return (
     <>
-      <header className="w-full h-auto lg:h-[91px] flex flex-col lg:flex-row items-center justify-between p-4 lg:px-8 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-lg sticky top-0 z-40">
-        {/* Logo */}
-        <div className="flex items-center justify-between w-full lg:w-auto">
-          <div className="relative flex items-center gap-3 group">
-            {/* Infinite Learning Logo */}
-            <div className="relative w-14 h-14 bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-all duration-500 overflow-hidden">
-              {/* Infinity symbol with learning elements */}
-              <div className="relative">
-                <svg
-                  width="32"
-                  height="20"
-                  viewBox="0 0 32 20"
+    <header className="w-full h-auto lg:h-[91px] flex flex-col lg:flex-row items-center justify-between p-4 lg:px-8 bg-black/20 backdrop-blur-md border-b border-white/10 shadow-lg sticky top-0 z-40">
+      {/* Logo */}
+      <div className="flex items-center justify-between w-full lg:w-auto">
+        <div className="relative flex items-center gap-3 group">
+          {/* Infinite Learning Logo */}
+          <div className="relative w-14 h-14 bg-gradient-to-br from-purple-500 via-blue-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-all duration-500 overflow-hidden">
+            {/* Infinity symbol with learning elements */}
+            <div className="relative">
+              <svg
+                width="32"
+                height="20"
+                viewBox="0 0 32 20"
+                fill="none"
+                className="text-white"
+              >
+                <path
+                  d="M8 10C8 6 10 4 14 4C18 4 20 6 20 10C20 14 18 16 14 16C10 16 8 14 8 10Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
                   fill="none"
-                  className="text-white"
-                >
-                  <path
-                    d="M8 10C8 6 10 4 14 4C18 4 20 6 20 10C20 14 18 16 14 16C10 16 8 14 8 10Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    className="animate-pulse"
-                  />
-                  <path
-                    d="M24 10C24 6 22 4 18 4C14 4 12 6 12 10C12 14 14 16 18 16C22 16 24 14 24 10Z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    fill="none"
-                    className="animate-pulse animation-delay-300"
-                  />
-                </svg>
-                {/* Learning dots */}
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-bounce"></div>
-                <div className="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-green-400 rounded-full animate-bounce animation-delay-500"></div>
-              </div>
-
-              {/* Glow effect */}
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-400/30 to-cyan-400/30 rounded-2xl blur-xl animate-pulse"></div>
+                  className="animate-pulse"
+                />
+                <path
+                  d="M24 10C24 6 22 4 18 4C14 4 12 6 12 10C12 14 14 16 18 16C22 16 24 14 24 10Z"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                  className="animate-pulse animation-delay-300"
+                />
+              </svg>
+              {/* Learning dots */}
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-yellow-400 rounded-full animate-bounce"></div>
+              <div className="absolute -bottom-1 -left-1 w-1.5 h-1.5 bg-green-400 rounded-full animate-bounce animation-delay-500"></div>
             </div>
 
-            <div className="flex flex-col">
-              <div className="bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent font-bold text-2xl lg:text-3xl leading-tight font-poppins">
-                Infinite Learning
-              </div>
-              <div className="font-medium text-gray-300 text-xs tracking-[2px] uppercase font-inter">
-                Endless Possibilities
-              </div>
-            </div>
+            {/* Glow effect */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-400/30 to-cyan-400/30 rounded-2xl blur-xl animate-pulse"></div>
           </div>
 
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="lg:hidden w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-white hover:bg-white/20 transition-colors duration-300"
-          >
-            <span className="text-xl">{isMenuOpen ? "✕" : "☰"}</span>
-          </button>
+          <div className="flex flex-col">
+            <div className="bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent font-bold text-2xl lg:text-3xl leading-tight font-poppins">
+              Infinite Learning
+            </div>
+            <div className="font-medium text-gray-300 text-xs tracking-[2px] uppercase font-inter">
+              Endless Possibilities
+            </div>
+          </div>
         </div>
 
-        {/* Navigation Menu */}
-        <div
-          className={`${
-            isMenuOpen ? "flex" : "hidden"
-          } lg:flex flex-col lg:flex-row items-center w-full lg:w-auto mt-4 lg:mt-0`}
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          className="lg:hidden w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center text-white hover:bg-white/20 transition-colors duration-300"
         >
-          <NavigationMenu className="max-w-none">
-            <NavigationMenuList className="flex flex-col lg:flex-row items-center gap-2 lg:gap-6 w-full lg:w-auto">
-              {navItems.map((item, index) => (
-                <NavigationMenuItem key={index} className="w-full lg:w-auto">
-                  <NavigationMenuLink asChild>
-                    <Link
-                      to={item.to}
+          <span className="text-xl">{isMenuOpen ? "✕" : "☰"}</span>
+        </button>
+      </div>
+
+      {/* Navigation Menu */}
+      <div
+        className={`${
+          isMenuOpen ? "flex" : "hidden"
+        } lg:flex flex-col lg:flex-row items-center w-full lg:w-auto mt-4 lg:mt-0`}
+      >
+        <NavigationMenu className="max-w-none">
+          <NavigationMenuList className="flex flex-col lg:flex-row items-center gap-2 lg:gap-6 w-full lg:w-auto">
+            {navItems.map((item, index) => (
+              <NavigationMenuItem key={index} className="w-full lg:w-auto">
+                <NavigationMenuLink asChild>
+                  <Link
+                    to={item.to}
                       className="flex items-center gap-2 font-medium text-indigo-700 hover:text-sky-700 hover:scale-105 transition-all duration-300 text-base lg:text-lg px-4 py-3 lg:py-2 rounded-xl hover:bg-white/10 font-inter w-full lg:w-auto justify-center lg:justify-start group cursor-pointer dark:text-gray-300 dark:hover:text-cyan-400"
-                    >
-                      <span className="text-lg group-hover:scale-125 transition-transform duration-300">
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </Link>
-                  </NavigationMenuLink>
-                </NavigationMenuItem>
-              ))}
+                  >
+                    <span className="text-lg group-hover:scale-125 transition-transform duration-300">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            ))}
               {/* User Profile and Logout when authenticated */}
               {isAuthenticated && user && (
                 <>
@@ -158,9 +238,9 @@ export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) =>
                   </NavigationMenuItem>
                 </>
               )}
-            </NavigationMenuList>
-          </NavigationMenu>
-        </div>
+          </NavigationMenuList>
+        </NavigationMenu>
+      </div>
 
         {/* Settings Icon (opens modal) */}
         <div className="hidden lg:flex items-center gap-2">
@@ -169,32 +249,32 @@ export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) =>
             className="w-[36px] h-[36px] bg-gradient-to-r from-cyan-500 to-purple-500 rounded-full flex items-center justify-center hover:scale-110 transition-transform duration-300 cursor-pointer shadow-lg group"
             title="Settings"
           >
-            <svg
-              className="w-5 h-5 text-white group-hover:rotate-90 transition-transform duration-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              />
-            </svg>
+          <svg
+            className="w-5 h-5 text-white group-hover:rotate-90 transition-transform duration-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+            />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+            />
+          </svg>
           </button>
         </div>
       </header>
       {/* Settings Modal (to be implemented) */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-background text-primary rounded-2xl shadow-2xl p-8 w-full max-w-md relative animate-slideInUp border border-border">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white/90 dark:bg-background text-primary rounded-2xl shadow-2xl p-8 w-full max-w-md relative animate-slideInUp border border-border">
             <button
               className="absolute top-4 right-4 text-2xl text-sky-600 hover:text-red-500 transition-colors dark:text-gray-400 dark:hover:text-red-400"
               onClick={() => setShowSettings(false)}
@@ -218,15 +298,85 @@ export const NavigationBarSection = ({ user, isAuthenticated, handleLogout }) =>
             {isAuthenticated && user && (
               <div className="mt-6">
                 <h3 className="text-lg font-semibold mb-2">Change Password</h3>
-                {/* Placeholder for change password form */}
-                <div className="bg-accent rounded-lg p-4 border border-border">
-                  <p className="text-secondary mb-2">Password change form coming soon!</p>
-                  {/* TODO: Implement change password form and connect to backend */}
-                </div>
+                <form onSubmit={handlePasswordChange} className="space-y-4">
+                  {/* Current Password */}
+                  <div>
+                    <label htmlFor="currentPassword" className="block text-sm font-medium mb-1">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      id="currentPassword"
+                      name="currentPassword"
+                      value={passwordForm.currentPassword}
+                      onChange={handlePasswordInputChange}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      placeholder="Enter current password"
+                      required
+                    />
+                  </div>
+
+                  {/* New Password */}
+                  <div>
+                    <label htmlFor="newPassword" className="block text-sm font-medium mb-1">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      id="newPassword"
+                      name="newPassword"
+                      value={passwordForm.newPassword}
+                      onChange={handlePasswordInputChange}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      placeholder="Enter new password (min 6 characters)"
+                      required
+                    />
+                  </div>
+
+                  {/* Confirm New Password */}
+                  <div>
+                    <label htmlFor="confirmPassword" className="block text-sm font-medium mb-1">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      value={passwordForm.confirmPassword}
+                      onChange={handlePasswordInputChange}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-background text-primary focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      placeholder="Confirm new password"
+                      required
+                    />
+                  </div>
+
+                  {/* Error Message */}
+                  {passwordError && (
+                    <div className="text-red-500 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg border border-red-200 dark:border-red-800">
+                      {passwordError}
+                    </div>
+                  )}
+
+                  {/* Success Message */}
+                  {passwordSuccess && (
+                    <div className="text-green-600 text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                      {passwordSuccess}
+                    </div>
+                  )}
+
+                  {/* Submit Button */}
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="w-full bg-gradient-to-r from-sky-500 to-purple-600 hover:from-sky-600 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                  >
+                    {isChangingPassword ? 'Changing Password...' : 'Change Password'}
+                  </button>
+                </form>
               </div>
             )}
-          </div>
         </div>
+      </div>
       )}
     </>
   );

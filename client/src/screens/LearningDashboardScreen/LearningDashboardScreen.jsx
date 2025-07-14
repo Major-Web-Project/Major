@@ -489,8 +489,8 @@ Your progress has been saved to your learning dashboard.`);
                               <Button
                                 onClick={() => handlePauseResumeTask(task.id)}
                                 className={`px-6 py-3 rounded-xl transition-all duration-300 font-bold ${
-                                  isTimerRunning
-                                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400'
+                                  isTimerRunning 
+                                    ? 'bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400' 
                                     : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400'
                                 } text-white shadow-lg`}
                               >
@@ -499,7 +499,7 @@ Your progress has been saved to your learning dashboard.`);
                             </div>
                           )}
                         </div>
-                        
+
                         {task.status !== 'completed' && (
                           <Button
                             onClick={() => handleCompleteTask(task.id)}

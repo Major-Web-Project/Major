@@ -3,29 +3,36 @@ import React, { useState } from 'react';
 export const StatisticsPieChart = ({ data }) => {
   const [hoveredSegment, setHoveredSegment] = useState(null);
 
-  const total = data.assignments + data.selfStudy + data.lectures;
+  // Defensive: Ensure data fields are numbers
+  const assignments = Number(data.assignments) || 0;
+  const selfStudy = Number(data.selfStudy) || 0;
+  const lectures = Number(data.lectures) || 0;
+  const total = assignments + selfStudy + lectures;
+
+  // If total is zero, show empty chart
+  const safeTotal = total > 0 ? total : 1;
 
   const segments = [
     {
       name: 'Assignments',
-      value: data.assignments,
-      percentage: Math.round((data.assignments / total) * 100),
+      value: assignments,
+      percentage: total > 0 ? Math.round((assignments / safeTotal) * 100) : 0,
       color: '#ef4444', // red-500
       gradient: 'from-red-500 to-red-600',
       hoverColor: '#dc2626', // red-600
     },
     {
       name: 'Self Study',
-      value: data.selfStudy,
-      percentage: Math.round((data.selfStudy / total) * 100),
+      value: selfStudy,
+      percentage: total > 0 ? Math.round((selfStudy / safeTotal) * 100) : 0,
       color: '#22c55e', // green-500
       gradient: 'from-green-500 to-green-600',
       hoverColor: '#16a34a', // green-600
     },
     {
       name: 'Lectures',
-      value: data.lectures,
-      percentage: Math.round((data.lectures / total) * 100),
+      value: lectures,
+      percentage: total > 0 ? Math.round((lectures / safeTotal) * 100) : 0,
       color: '#3b82f6', // blue-500
       gradient: 'from-blue-500 to-blue-600',
       hoverColor: '#2563eb', // blue-600
@@ -35,21 +42,21 @@ export const StatisticsPieChart = ({ data }) => {
   // Calculate angles for pie segments
   let currentAngle = 0;
   const segmentsWithAngles = segments.map((segment) => {
-    const angle = (segment.value / total) * 360;
+    const angle = total > 0 ? (segment.value / safeTotal) * 360 : 0;
     const startAngle = currentAngle;
     const endAngle = currentAngle + angle;
     currentAngle += angle;
-
     return {
       ...segment,
-      startAngle,
-      endAngle,
-      angle,
+      startAngle: isNaN(startAngle) ? 0 : startAngle,
+      endAngle: isNaN(endAngle) ? 0 : endAngle,
+      angle: isNaN(angle) ? 0 : angle,
     };
   });
 
   // Function to create SVG path for pie segment
   const createPath = (startAngle, endAngle) => {
+    if (isNaN(startAngle) || isNaN(endAngle) || startAngle === endAngle) return '';
     const radius = 100;
     const centerX = 100;
     const centerY = 100;
@@ -71,6 +78,9 @@ export const StatisticsPieChart = ({ data }) => {
       'Z',
     ].join(' ');
   };
+
+  // Calculate total percentage for center text
+  const totalPercent = total > 0 ? 100 : 0;
 
   return (
     <div className="w-full bg-transparent p-4">
@@ -138,7 +148,7 @@ export const StatisticsPieChart = ({ data }) => {
           {/* Center text */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <div className="text-indigo-700 text-lg font-bold dark:text-white">100%</div>
+              <div className="text-indigo-700 text-lg font-bold dark:text-white">{totalPercent}%</div>
               <div className="text-sky-600 text-xs dark:text-gray-400">Complete</div>
             </div>
           </div>

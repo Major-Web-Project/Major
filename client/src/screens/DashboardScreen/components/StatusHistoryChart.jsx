@@ -1,51 +1,55 @@
 import React from 'react';
 
 export const StatusHistoryChart = ({ data }) => {
-  const maxValue = Math.max(...data.map((d) => d.value));
-  const minValue = Math.min(...data.map((d) => d.value));
+  const history = data || [];
+  const safeHistory = history.map(item => ({
+    date: item?.date || '',
+    value: typeof item?.value === 'number' ? item.value : 0
+  }));
+
+  const maxValue = Math.max(...safeHistory.map((d) => d.value));
+  const minValue = Math.min(...safeHistory.map((d) => d.value));
   const range = maxValue - minValue;
 
   // Generate SVG path for the line chart
   const generatePath = () => {
+    if (safeHistory.length === 0) return '';
     const width = 400;
     const height = 200;
     const padding = 20;
-
-    const points = data.map((item, index) => {
-      const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+    const points = safeHistory.map((item, index) => {
+      const x = padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
       const y =
         height -
         padding -
         ((item.value - minValue) / range) * (height - 2 * padding);
       return `${x},${y}`;
     });
-
+    if (points.length === 0) return '';
     return `M ${points.join(' L ')}`;
   };
 
   // Generate area path for gradient fill
   const generateAreaPath = () => {
+    if (safeHistory.length === 0) return '';
     const width = 400;
     const height = 200;
     const padding = 20;
-
-    const points = data.map((item, index) => {
-      const x = padding + (index / (data.length - 1)) * (width - 2 * padding);
+    const points = safeHistory.map((item, index) => {
+      const x = padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
       const y =
         height -
         padding -
         ((item.value - minValue) / range) * (height - 2 * padding);
       return `${x},${y}`;
     });
-
+    if (points.length === 0) return '';
     const firstPoint = points[0];
     const lastPoint = points[points.length - 1];
+    if (!firstPoint || !lastPoint) return '';
     const lastX = lastPoint.split(',')[0];
     const firstX = firstPoint.split(',')[0];
-
-    return `M ${firstX},${height - padding} L ${points.join(
-      ' L '
-    )} L ${lastX},${height - padding} Z`;
+    return `M ${firstX},${height - padding} L ${points.join(' L ')} L ${lastX},${height - padding} Z`;
   };
 
   return (
@@ -122,12 +126,12 @@ export const StatusHistoryChart = ({ data }) => {
           />
 
           {/* Data points */}
-          {data.map((item, index) => {
+          {safeHistory.map((item, index) => {
             const width = 400;
             const height = 200;
             const padding = 20;
             const x =
-              padding + (index / (data.length - 1)) * (width - 2 * padding);
+              padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
             const y =
               height -
               padding -

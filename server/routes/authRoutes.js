@@ -16,4 +16,7 @@ router.post("/logout", AuthController.logout);
 // GET /api/auth/profile - Get current user profile (protected route)
 router.get("/profile", protect, AuthController.getProfile);
 
+// POST /api/auth/change-password - Change password (protected route)
+router.post("/change-password", protect, AuthController.changePassword);
+
 export default router;

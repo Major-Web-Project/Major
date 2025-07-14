@@ -77,33 +77,33 @@ function App() {
   return (
     <ThemeProvider>
       <div className="bg-background text-primary min-h-screen transition-colors duration-500">
-        <ToastContainer
-          position="top-right"
-          autoClose={5000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-        />
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+      />
         <NavigationBarSection 
           user={user} 
           isAuthenticated={isAuthenticated} 
           handleLogout={handleLogout}
           handleLogin={handleLogin}
         />
-        <Routes>
-          <Route path="/" element={<FrameScreen />} />
+      <Routes>
+        <Route path="/" element={<FrameScreen />} />
           <Route path="/auth" element={<AuthScreen onLogin={handleLogin} />} />
-          <Route path="/dashboard" element={<DashboardScreen />} />
-          <Route path="/about" element={<AboutScreen />} />
+          <Route path="/dashboard" element={isAuthenticated ? <DashboardScreen /> : <Navigate to="/auth" replace />} />
+        <Route path="/about" element={<AboutScreen />} />
           <Route path="/assessment" element={<AssessmentScreen onComplete={handleAssessmentComplete} />} />
           <Route path="/goal-setup" element={<GoalSetupScreen userProfile={userProfile} onComplete={handleGoalSetupComplete} />} />
           <Route path="/roadmap" element={<RoadmapScreen goalData={goalData} roadmap={roadmap} userProfile={userProfile} onStartLearning={handleStartLearning} />} />
-          <Route
-            path="/learning-dashboard"
+        <Route
+          path="/learning-dashboard"
             element={
               goalSet && learningData && roadmap && userProfile ? (
                 <LearningDashboardScreen
@@ -117,8 +117,8 @@ function App() {
               )
             }
           />
-          <Route path="/tasks" element={<TasksScreen />} />
-        </Routes>
+          <Route path="/tasks" element={isAuthenticated ? <TasksScreen /> : <Navigate to="/auth" replace />} />
+      </Routes>
       </div>
     </ThemeProvider>
   );

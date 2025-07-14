@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Button } from '../../../components/ui/button';
+import { apiService } from '../../../services/api';
 
-export const DailyReportTable = ({ data: initialData }) => {
-  const [data, setData] = useState(initialData);
+export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
+  const reports = data || [];
   const [selectedDate, setSelectedDate] = useState(0);
   const [expandedTask, setExpandedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
@@ -16,7 +17,7 @@ export const DailyReportTable = ({ data: initialData }) => {
     estimatedTime: '',
   });
 
-  const currentReport = data[selectedDate];
+  const currentReport = reports[selectedDate] || { tasks: [] };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -78,7 +79,7 @@ export const DailyReportTable = ({ data: initialData }) => {
   const handleSaveEdit = () => {
     if (!editingTask) return;
 
-    const updatedData = [...data];
+    const updatedData = [...reports];
     const reportIndex = selectedDate;
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === editingTask
@@ -105,7 +106,7 @@ export const DailyReportTable = ({ data: initialData }) => {
     setEditForm({});
   };
 
-  const handleAddTask = () => {
+  const handleAddTask = async () => {
     if (!newTaskForm.name?.trim()) return;
 
     const newTask = {
@@ -118,11 +119,9 @@ export const DailyReportTable = ({ data: initialData }) => {
       estimatedTime: newTaskForm.estimatedTime,
     };
 
-    const updatedData = [...data];
-    updatedData[selectedDate].tasks.push(newTask);
-    setData(updatedData);
-
-    // Reset form
+    try {
+      await apiService.createTask({ data: newTask });
+      if (onTaskCreated) onTaskCreated();
     setNewTaskForm({
       name: '',
       status: 'pending',
@@ -131,10 +130,14 @@ export const DailyReportTable = ({ data: initialData }) => {
       estimatedTime: '',
     });
     setShowAddTask(false);
+    } catch (error) {
+      alert('Failed to create task. Please try again.');
+      console.error(error);
+    }
   };
 
   const handleStatusChange = (taskId, newStatus) => {
-    const updatedData = [...data];
+    const updatedData = [...reports];
     const reportIndex = selectedDate;
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
@@ -154,7 +157,7 @@ export const DailyReportTable = ({ data: initialData }) => {
   };
 
   const handlePriorityChange = (taskId, newPriority) => {
-    const updatedData = [...data];
+    const updatedData = [...reports];
     const reportIndex = selectedDate;
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
@@ -180,7 +183,15 @@ export const DailyReportTable = ({ data: initialData }) => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
           {/* Date Selector */}
           <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-            {data.map((report, index) => (
+            {reports.map((report, index) => {
+              let label = "Invalid Date";
+              if (report.date && !isNaN(new Date(report.date).getTime())) {
+                label = new Date(report.date).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                });
+              }
+              return (
               <Button
                 key={index}
                 onClick={() => setSelectedDate(index)}
@@ -190,12 +201,10 @@ export const DailyReportTable = ({ data: initialData }) => {
                     : 'bg-white/10 text-gray-300 hover:bg-white/20'
                 }`}
               >
-                {new Date(report.date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                })}
+                  {label}
               </Button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Add Task Button */}
@@ -314,72 +323,72 @@ export const DailyReportTable = ({ data: initialData }) => {
         {/* Desktop Table Header - Hidden on mobile */}
         <div className="hidden lg:grid grid-cols-12 gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
           <div className="col-span-4 text-indigo-700 font-semibold text-sm dark:text-white">
-            Task Name
+                Task Name
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-            Status
+                Status
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-            Priority
+                Priority
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-            Time
+                Time
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-            Actions
+                Actions
           </div>
-        </div>
+                      </div>
 
         {/* Task Rows */}
-        {currentReport.tasks.map((task, index) => (
+        {(currentReport.tasks || []).map((task, index) => (
           <div key={task.id} className="space-y-2">
             {/* Desktop Layout */}
             <div className="hidden lg:grid grid-cols-12 gap-4 p-4 bg-white/10 rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
-              {/* Task Name */}
+                    {/* Task Name */}
               <div className="col-span-4 flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                   {index + 1}
                 </div>
-                <div>
-                  {editingTask === task.id ? (
-                    <input
-                      type="text"
+                      <div>
+                        {editingTask === task.id ? (
+                          <input
+                            type="text"
                       value={editForm.name || ''}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, name: e.target.value })
-                      }
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, name: e.target.value })
+                            }
                       className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
-                    />
-                  ) : (
+                          />
+                        ) : (
                     <>
                       <div className="text-indigo-700 font-medium dark:text-white">{task.name}</div>
                       <div className="text-sky-700 text-xs mt-1 dark:text-white">ID: {task.id}</div>
                     </>
-                  )}
-                </div>
-              </div>
+                        )}
+                      </div>
+                      </div>
 
-              {/* Status */}
+                    {/* Status */}
               <div className="col-span-2 flex items-center">
-                {editingTask === task.id ? (
-                  <select
+                      {editingTask === task.id ? (
+                        <select
                     value={editForm.status || task.status}
-                    onChange={(e) =>
+                          onChange={(e) =>
                       setEditForm({ ...editForm, status: e.target.value })
-                    }
+                          }
                     className="bg-white/10 border border-white/20 rounded px-2 py-1 text-black text-xs"
-                  >
-                    <option value="pending">⏳ <span className='text-black'>Pending</span></option>
+                        >
+                    <option value="pending">⏳ Pending</option>
                     <option value="in-progress">🔄 In Progress</option>
                     <option value="completed">✅ Completed</option>
-                  </select>
-                ) : (
+                        </select>
+                      ) : (
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                        task.status
-                      )}`}
-                    >
+                            task.status
+                          )}`}
+                        >
                       <span>{getStatusIcon(task.status)}</span>
                       {task.status.replace('-', ' ')}
                     </span>
@@ -412,29 +421,29 @@ export const DailyReportTable = ({ data: initialData }) => {
                 )}
               </div>
 
-              {/* Priority */}
+                    {/* Priority */}
               <div className="col-span-2 flex items-center">
-                {editingTask === task.id ? (
-                  <select
+                      {editingTask === task.id ? (
+                        <select
                     value={editForm.priority || task.priority}
-                    onChange={(e) =>
+                          onChange={(e) =>
                       setEditForm({ ...editForm, priority: e.target.value })
-                    }
+                          }
                     className="bg-white/10 border border-white/20 rounded px-2 py-1 text-black text-xs"
-                  >
+                        >
                     <option value="Low">🟢 Low</option>
                     <option value="Medium">🟡 Medium</option>
                     <option value="High">🔴 High</option>
-                  </select>
-                ) : (
+                        </select>
+                      ) : (
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(
-                        task.priority
-                      )}`}
-                    >
+                            task.priority
+                          )}`}
+                        >
                       <span>{getPriorityIcon(task.priority)}</span>
-                      {task.priority}
+                          {task.priority}
                     </span>
                     {/* Quick Priority Change */}
                     <div className="flex gap-1">
@@ -468,41 +477,41 @@ export const DailyReportTable = ({ data: initialData }) => {
                 </span>
               </div>
 
-              {/* Actions */}
+                    {/* Actions */}
               <div className="col-span-2 flex items-center justify-end gap-6">
-                {editingTask === task.id ? (
+                      {editingTask === task.id ? (
                   <>
-                    <Button
-                      onClick={handleSaveEdit}
+                          <Button
+                            onClick={handleSaveEdit}
                       className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white text-xs rounded-lg transition-all duration-300"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      onClick={handleCancelEdit}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            onClick={handleCancelEdit}
                       className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded-lg transition-all duration-300"
-                    >
-                      Cancel
-                    </Button>
+                          >
+                            Cancel
+                          </Button>
                   </>
-                ) : (
+                      ) : (
                   <>
-                    <Button
+                          <Button
                       onClick={() =>
                         setExpandedTask(
                           expandedTask === task.id ? null : task.id
                         )
                       }
                       className="px-3 py-1 bg-white/10 hover:bg-white/20 text-indigo-700 dark:text-white text-xs rounded-lg transition-all duration-300"
-                    >
-                      {expandedTask === task.id ? 'Hide' : 'Details'}
-                    </Button>
-                    <Button
-                      onClick={() => handleEditTask(task)}
+                          >
+                            {expandedTask === task.id ? 'Hide' : 'Details'}
+                          </Button>
+                          <Button
+                            onClick={() => handleEditTask(task)}
                       className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
-                    >
-                      Edit
-                    </Button>
+                          >
+                            Edit
+                          </Button>
                   </>
                 )}
               </div>
@@ -535,8 +544,8 @@ export const DailyReportTable = ({ data: initialData }) => {
                       </>
                     )}
                   </div>
-                </div>
-              </div>
+                          </div>
+                          </div>
 
               {/* Status and Priority Row */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -549,7 +558,7 @@ export const DailyReportTable = ({ data: initialData }) => {
                       }
                       className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-xs flex-1 min-w-0"
                     >
-                      <option value="pending">⏳ <span className='text-black'>Pending</span></option>
+                      <option value="pending">⏳ Pending</option>
                       <option value="in-progress">🔄 In Progress</option>
                       <option value="completed">✅ Completed</option>
                     </select>
@@ -590,7 +599,7 @@ export const DailyReportTable = ({ data: initialData }) => {
                     </span>
                   </>
                 )}
-              </div>
+                            </div>
 
               {/* Quick Action Buttons */}
               {editingTask !== task.id && (
@@ -630,8 +639,8 @@ export const DailyReportTable = ({ data: initialData }) => {
                     >
                       ↓ <span className="hidden sm:inline dark:text-white">Low</span>
                     </button>
-                  )}
-                </div>
+                          )}
+                        </div>
               )}
 
               {/* Action Buttons */}
@@ -663,12 +672,12 @@ export const DailyReportTable = ({ data: initialData }) => {
                     >
                       {expandedTask === task.id ? 'Hide' : 'Details'}
                     </Button>
-                    <Button
-                      onClick={() => handleEditTask(task)}
+                            <Button
+                              onClick={() => handleEditTask(task)}
                       className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
-                    >
-                      Edit
-                    </Button>
+                            >
+                              Edit
+                            </Button>
                   </>
                 )}
               </div>
@@ -729,14 +738,14 @@ export const DailyReportTable = ({ data: initialData }) => {
                       </div>
                     </div>
                   </div>
-                </div>
-              </div>
+                          </div>
+                        </div>
             )}
           </div>
         ))}
 
         {/* Empty State */}
-        {currentReport.tasks.length === 0 && (
+        {(currentReport.tasks || []).length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📋</div>
             <div className="text-sky-600 text-lg dark:text-gray-400">No tasks for this date</div>
@@ -755,13 +764,13 @@ export const DailyReportTable = ({ data: initialData }) => {
         <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-3 sm:p-4 rounded-xl border border-green-500/30">
           <div className="text-green-400 font-semibold text-sm">Completed</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {currentReport.tasks.filter((t) => t.status === 'completed').length}
+            {(currentReport.tasks || []).filter((t) => t.status === 'completed').length}
           </div>
           <div className="text-mint-700 text-xs dark:text-green-300">
             {Math.round(
-              (currentReport.tasks.filter((t) => t.status === 'completed')
+              ((currentReport.tasks || []).filter((t) => t.status === 'completed')
                 .length /
-                Math.max(currentReport.tasks.length, 1)) *
+                Math.max((currentReport.tasks || []).length, 1)) *
                 100
             )}
             % done
@@ -770,17 +779,14 @@ export const DailyReportTable = ({ data: initialData }) => {
         <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
           <div className="text-yellow-700 font-semibold text-sm dark:text-yellow-400">In Progress</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {
-              currentReport.tasks.filter((t) => t.status === 'in-progress')
-                .length
-            }
+            {(currentReport.tasks || []).filter((t) => t.status === 'in-progress').length}
           </div>
           <div className="text-yellow-700 text-xs dark:text-yellow-300">Active tasks</div>
         </div>
         <div className="bg-gradient-to-r from-red-500/20 to-pink-500/20 p-3 sm:p-4 rounded-xl border border-red-500/30">
           <div className="text-red-400 font-semibold text-sm">Pending</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {currentReport.tasks.filter((t) => t.status === 'pending').length}
+            {(currentReport.tasks || []).filter((t) => t.status === 'pending').length}
           </div>
           <div className="text-pink-700 text-xs dark:text-red-300">Waiting to start</div>
         </div>
@@ -789,10 +795,10 @@ export const DailyReportTable = ({ data: initialData }) => {
             Total Tasks
           </div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {currentReport.tasks.length}
+            {(currentReport.tasks || []).length}
           </div>
           <div className="text-purple-700 text-xs dark:text-purple-300">
-            {currentReport.tasks.filter((t) => t.priority === 'high').length} high priority
+            {(currentReport.tasks || []).filter((t) => t.priority === 'high').length} high priority
           </div>
         </div>
       </div>

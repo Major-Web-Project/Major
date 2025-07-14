@@ -5,15 +5,37 @@ import { WeeklyActivityChart } from './components/WeeklyActivityChart';
 import { StatusHistoryChart } from './components/StatusHistoryChart';
 import { StatisticsPieChart } from './components/StatisticsPieChart';
 import { DailyReportTable } from './components/DailyReportTable';
-import { dashboardData, currentUser } from '../../data/mockData';
+import { apiService } from '../../services/api';
 import { aiAssistant } from '../../services/aiLearningService';
 import { useNavigate } from "react-router-dom";
+
+// Helper to group tasks by date
+const groupTasksByDate = (tasks) => {
+  const grouped = {};
+  tasks.forEach(task => {
+    const date = task.data && task.data.createdAt
+      ? new Date(task.data.createdAt).toISOString().split('T')[0]
+      : (task.createdAt ? new Date(task.createdAt).toISOString().split('T')[0] : 'unknown');
+    if (!grouped[date]) grouped[date] = [];
+    grouped[date].push({ ...task.data, id: task._id, createdAt: task.data?.createdAt || task.createdAt });
+  });
+  return Object.entries(grouped).map(([date, tasks]) => ({ date, tasks }));
+};
 
 export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDashboardData, aiTasksData }) => {
   const [loading, setLoading] = useState(true);
   const [aiInsights, setAiInsights] = useState(null);
-  const [displayData, setDisplayData] = useState(dashboardData);
+  const [dashboard, setDashboard] = useState(null);
+  const [user, setUser] = useState(null);
+  const [dailyReport, setDailyReport] = useState([]);
+  const [weeklyActivity, setWeeklyActivity] = useState(null);
   const navigate = useNavigate();
+
+  const fetchAndGroupTasks = async () => {
+    const tasksRes = await apiService.getTasks();
+    const grouped = groupTasksByDate(tasksRes.data.tasks || []);
+    setDailyReport(grouped);
+  };
 
   useEffect(() => {
     // Scroll to top when component mounts
@@ -21,6 +43,14 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
     
     const fetchDashboardData = async () => {
       try {
+        const res = await apiService.getDashboardData();
+        setDashboard(res.data.dashboard);
+        setUser(res.data.user);
+        await fetchAndGroupTasks();
+        // Fetch weekly activity
+        const weeklyRes = await apiService.getWeeklyActivity();
+        setWeeklyActivity(weeklyRes.data.activities[0] || null);
+
         // Initialize AI assistant if user profile exists
         if (userProfile) {
           aiAssistant.userProfile = userProfile;
@@ -30,10 +60,9 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
 
         // Use AI dashboard data if available, otherwise use mock data
         if (aiDashboardData && aiTasksData) {
-          setDisplayData({
-            ...dashboardData,
+          setDashboard({
+            ...res.data.dashboard,
             ...aiDashboardData,
-            // Convert AI tasks to daily report format
             dailyReport: [{
               date: new Date().toISOString().split('T')[0],
               tasks: aiTasksData.map(task => ({
@@ -72,6 +101,24 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
       window.dispatchEvent(learningDashboardEvent);
     }
   };
+
+  // Defensive defaults for dashboard data
+  const weeklyActivityData = (weeklyActivity?.days || [])
+    .map(day => ({
+      ...day,
+      goal: typeof day.goal === 'number' ? day.goal : 100
+    }));
+  const backendStreak = weeklyActivity?.streak ?? 0;
+  const backendBestDay = weeklyActivity?.bestDay ?? 'N/A';
+  const backendAvgGoal = weeklyActivity?.avgGoal ?? 100;
+  const backendAvgCompleted = weeklyActivity?.avgCompleted ?? 0;
+  const backendTotalTasks = weeklyActivity?.totalTasks ?? 0;
+  const backendCompletedTasks = weeklyActivity?.completedTasks ?? 0;
+  const statusHistory = dashboard?.statusHistory || [];
+  const statistics = dashboard?.statistics || { assignments: 0, selfStudy: 0, lectures: 0 };
+  const totalTasks = dashboard?.totalTasks ?? 0;
+  const completedTasks = dashboard?.completedTasks ?? 0;
+  const pendingTasks = dashboard?.pendingTasks ?? 0;
 
   if (loading) {
     return (
@@ -141,8 +188,8 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
           <div className="mb-8">
             <div className="flex items-center gap-6 mb-6">
               <img
-                src={currentUser.avatar}
-                alt={currentUser.name}
+                src={user?.avatar}
+                alt={user?.name}
                 className="w-20 h-20 rounded-full object-cover border-4 border-cyan-400/50"
               />
               <div>
@@ -150,7 +197,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   Dashboard Overview
                 </h1>
                 <p className="text-gray-300 text-lg">
-                  {currentUser.role} • {currentUser.currentStreak} day learning streak 🔥
+                  {user?.role} • {user?.currentStreak} day learning streak 🔥
                 </p>
                 {learningData && (
                   <p className="text-cyan-400 text-sm mt-1">
@@ -209,7 +256,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   {learningData ? 'AI Tasks Generated' : 'Courses Enrolled'}
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {learningData ? (aiTasksData?.length || 0) : currentUser.coursesEnrolled}
+                  {learningData ? (aiTasksData?.length || 0) : user?.coursesEnrolled}
                 </div>
               </div>
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
@@ -217,7 +264,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   Tasks Completed
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {aiInsights?.totalTasksCompleted || currentUser.tasksCompleted}
+                  {aiInsights?.totalTasksCompleted || user?.tasksCompleted}
                 </div>
               </div>
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
@@ -225,7 +272,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   Learning Hours
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {aiInsights?.timeSpentTotal?.toFixed(1) || currentUser.totalHoursLearned}h
+                  {aiInsights?.timeSpentTotal?.toFixed(1) || user?.totalHoursLearned}h
                 </div>
               </div>
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
@@ -235,7 +282,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
                   {learningData 
                     ? `${Math.round((aiInsights?.averageEfficiency || 0) * 100)}%`
-                    : currentUser.skillsGained.length
+                    : (user?.skillsGained ? user.skillsGained.length : 0)
                   }
                 </div>
               </div>
@@ -300,12 +347,12 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                           This Week
                         </div>
                         <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                          {Math.round(
-                            displayData.weeklyActivity.reduce(
-                              (acc, day) => acc + day.completed,
-                              0
-                            ) / displayData.weeklyActivity.length
-                          )}
+                          {weeklyActivityData.length
+                            ? Math.round(
+                                weeklyActivityData.reduce((acc, day) => acc + day.completed, 0) / weeklyActivityData.length
+                              )
+                            : 0
+                          }
                           %
                         </div>
                       </div>
@@ -314,18 +361,16 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                           Goal Achievement
                         </div>
                         <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                          {
-                            displayData.weeklyActivity.filter(
-                              (day) => day.completed >= day.goal
-                            ).length
-                          }
+                          {weeklyActivityData.length
+                            ? weeklyActivityData.filter((day) => day.completed >= day.goal).length
+                            : 0}
                           /7
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <WeeklyActivityChart data={displayData.weeklyActivity} />
+                  <WeeklyActivityChart data={weeklyActivityData} />
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -333,11 +378,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                         Best Day
                       </div>
                       <div className="text-indigo-700 text-lg font-bold dark:text-white">
-                        {
-                          displayData.weeklyActivity.reduce((best, day) =>
-                            day.completed > best.completed ? day : best
-                          ).day
-                        }
+                        {backendBestDay}
                       </div>
                     </div>
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -345,13 +386,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                         Avg Goal
                       </div>
                       <div className="text-indigo-700 text-lg font-bold dark:text-white">
-                        {Math.round(
-                          displayData.weeklyActivity.reduce(
-                            (acc, day) => acc + day.goal,
-                            0
-                          ) / displayData.weeklyActivity.length
-                        )}
-                        %
+                        {backendAvgGoal}%
                       </div>
                     </div>
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -359,13 +394,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                         Avg Completed
                       </div>
                       <div className="text-indigo-700 text-lg font-bold dark:text-white">
-                        {Math.round(
-                          displayData.weeklyActivity.reduce(
-                            (acc, day) => acc + day.completed,
-                            0
-                          ) / displayData.weeklyActivity.length
-                        )}
-                        %
+                        {backendAvgCompleted}%
                       </div>
                     </div>
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -373,7 +402,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                         Streak
                       </div>
                       <div className="text-indigo-700 text-lg font-bold dark:text-white">
-                        {currentUser.currentStreak} days
+                        {backendStreak} days
                       </div>
                     </div>
                   </div>
@@ -388,7 +417,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                     Status History
                   </h2>
-                  <StatusHistoryChart data={displayData.statusHistory} />
+                  <StatusHistoryChart data={statusHistory} />
                 </CardContent>
               </Card>
             </div>
@@ -400,7 +429,11 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                     Your Statistics
                   </h2>
-                  <StatisticsPieChart data={displayData.statistics} />
+                  <StatisticsPieChart data={{
+                    assignments: backendTotalTasks,
+                    selfStudy: 0, // You can update this if you track self-study tasks
+                    lectures: 0   // You can update this if you track lecture tasks
+                  }} />
                 </CardContent>
               </Card>
             </div>
@@ -413,20 +446,20 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                   Daily Report
                 </h2>
-                <DailyReportTable data={displayData.dailyReport} />
+                <DailyReportTable data={dailyReport} setData={setDailyReport} onTaskCreated={fetchAndGroupTasks} />
               </CardContent>
             </Card>
           </div>
 
           {/* User Achievements */}
-                      <Card className="bg-sky-50/50 backdrop-blur-md border border-sky-200/50 rounded-3xl shadow-2xl dark:bg-white/10 dark:border-white/20">
-              <CardContent className="p-8">
-                <h2 className="text-3xl font-bold text-indigo-700 mb-6 font-poppins flex items-center gap-3 dark:text-white">
-                  <span className="text-4xl">🏆</span>
-                  Your Achievements
-                </h2>
+          <Card className="bg-sky-50/50 backdrop-blur-md border border-sky-200/50 rounded-3xl shadow-2xl dark:bg-white/10 dark:border-white/20">
+            <CardContent className="p-8">
+              <h2 className="text-3xl font-bold text-indigo-700 mb-6 font-poppins flex items-center gap-3 dark:text-white">
+                <span className="text-4xl">🏆</span>
+                Your Achievements
+              </h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {currentUser.achievements.map((achievement, index) => (
+                {(user?.achievements || []).map((achievement, index) => (
                   <div
                     key={index}
                     className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 rounded-xl p-4 border border-yellow-400/30 text-center"

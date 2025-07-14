@@ -260,6 +260,75 @@ class AuthController {
       });
     }
   }
+
+  // Change password
+  static async changePassword(req, res) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+
+      // Validate required fields
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          error: "Missing required fields",
+          message: "Current password and new password are required",
+        });
+      }
+
+      // Validate new password length
+      if (newPassword.length < 6) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid password",
+          message: "New password must be at least 6 characters long",
+        });
+      }
+
+      // Get user from request (set by auth middleware)
+      const user = await User.findById(req.user.id);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          error: "User not found",
+          message: "User not found",
+        });
+      }
+
+      // Verify current password
+      const isCurrentPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password
+      );
+      if (!isCurrentPasswordValid) {
+        return res.status(401).json({
+          success: false,
+          error: "Incorrect password",
+          message: "Current password is incorrect",
+        });
+      }
+
+      // Hash new password
+      const salt = await bcrypt.genSalt(12);
+      const hashedNewPassword = await bcrypt.hash(newPassword, salt);
+
+      // Update user password
+      user.password = hashedNewPassword;
+      await user.save();
+
+      res.status(200).json({
+        success: true,
+        message: "Password changed successfully",
+      });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({
+        success: false,
+        error: "Internal server error",
+        message: "Something went wrong while changing password",
+      });
+    }
+  }
 }
 
 export default AuthController;

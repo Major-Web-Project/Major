@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
-import { currentUser, availableCourses, achievers } from "../../data/mockData";
+import { availableCourses, achievers } from "../../data/mockData";
 
 export const AboutScreen = () => {
   const stats = [

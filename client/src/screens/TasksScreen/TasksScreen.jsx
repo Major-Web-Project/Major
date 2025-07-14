@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { CalendarSection } from './components/CalendarSection';
 import { DailyTaskChargeSection } from './components/DailyTaskChargeSection';
 import { TaskReportSection } from './components/TaskReportSection';
-import { aiAssistant } from '../../services/aiLearningService';
+import { apiService } from '../../services/api';
 
 export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, goalData, onTaskComplete }) => {
   const [tasks, setTasks] = useState([]);
@@ -12,162 +12,22 @@ export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, g
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Scroll to top when component mounts
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    
     const fetchUserTasks = async () => {
       setLoading(true);
       try {
-        // Initialize AI assistant if user profile exists
-        if (userProfile) {
-          aiAssistant.userProfile = userProfile;
-        }
-
-        let allTasks = [];
-
-        // If we have AI learning data, use AI-generated tasks
-        if (learningData && userProfile && roadmap) {
-          // Get existing AI tasks
-          if (aiTasksData && aiTasksData.length > 0) {
-            allTasks = aiTasksData.map(aiTask => ({
-              id: aiTask.id,
-              title: aiTask.title,
-              description: aiTask.description,
-              assignedDate: new Date().toISOString().split('T')[0],
-              dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-              priority: aiTask.priority,
-              status: aiTask.status || 'pending',
-              estimatedTime: aiTask.estimatedTime,
-              category: aiTask.category,
-              assignedBy: 'AI Learning Assistant',
-              tags: aiTask.topics || ['AI-Generated'],
-              courseId: 'AI-LEARNING-001',
-              courseName: `AI ${goalData?.learningPath || 'Personalized Learning'}`,
-              difficultyLevel: aiTask.difficulty === 5 ? 'advanced' : 
-                              aiTask.difficulty >= 3 ? 'intermediate' : 'beginner',
-              skillsGained: aiTask.topics || ['Problem Solving'],
-              taskType: aiTask.type,
-              learningObjectives: [`Master ${aiTask.title}`, 'Apply learned concepts'],
-              prerequisites: ['Basic understanding of the topic'],
-              resources: aiTask.resources || [
-                { type: 'video', title: 'Tutorial Video', url: '#' },
-                { type: 'article', title: 'Reference Article', url: '#' }
-              ],
-              gradeWeight: 15,
-              maxAttempts: 2,
-              currentAttempt: 0,
-              isAIGenerated: true
-            }));
-          }
-
-          // Generate additional AI tasks for different days
-          for (let i = 0; i < 7; i++) {
-            const dayTasks = aiAssistant.generateDailyTasks(
-              roadmap,
-              learningData.currentPhase || 1,
-              (learningData.dayNumber || 1) + i,
-              userProfile
-            );
-
-            const assignedDate = new Date();
-            assignedDate.setDate(assignedDate.getDate() - i);
-            
-            const dueDate = new Date(assignedDate);
-            dueDate.setDate(assignedDate.getDate() + 3);
-
-            dayTasks.forEach(aiTask => {
-              allTasks.push({
-                id: `${aiTask.id}-day-${i}`,
-                title: aiTask.title,
-                description: aiTask.description,
-                assignedDate: assignedDate.toISOString().split('T')[0],
-                dueDate: dueDate.toISOString().split('T')[0],
-                priority: aiTask.priority,
-                status: i === 0 ? (aiTask.status || 'pending') : 'pending',
-                estimatedTime: aiTask.estimatedTime,
-                category: aiTask.category,
-                assignedBy: 'AI Learning Assistant',
-                tags: aiTask.topics || ['AI-Generated'],
-                courseId: 'AI-LEARNING-001',
-                courseName: `AI ${goalData?.learningPath || 'Personalized Learning'}`,
-                difficultyLevel: aiTask.difficulty === 5 ? 'advanced' : 
-                                aiTask.difficulty >= 3 ? 'intermediate' : 'beginner',
-                skillsGained: aiTask.topics || ['Problem Solving'],
-                taskType: aiTask.type,
-                learningObjectives: [`Master ${aiTask.title}`, 'Apply learned concepts'],
-                prerequisites: ['Basic understanding of the topic'],
-                resources: aiTask.resources || [
-                  { type: 'video', title: 'Tutorial Video', url: '#' },
-                  { type: 'article', title: 'Reference Article', url: '#' }
-                ],
-                gradeWeight: 15,
-                maxAttempts: 2,
-                currentAttempt: 0,
-                isAIGenerated: true
-              });
-            });
-          }
-        } else {
-          // Fallback: Generate some sample tasks if no AI data
-          allTasks = generateSampleTasks();
-        }
-
-        setTimeout(() => {
-          setTasks(allTasks);
-          setLoading(false);
-        }, 1000);
+        const res = await apiService.getTasks();
+        // Map backend tasks to UI format (flatten data field)
+        const userTasks = res.data.tasks.map(task => ({ id: task._id, ...task.data }));
+        setTasks(userTasks);
       } catch (error) {
         console.error('Failed to fetch tasks:', error);
+      } finally {
         setLoading(false);
       }
     };
-
     fetchUserTasks();
-  }, [userProfile, learningData, aiTasksData, roadmap, goalData]);
-
-  // Generate sample tasks for fallback
-  const generateSampleTasks = () => {
-    const sampleTasks = [];
-    const today = new Date();
-    
-    for (let i = 0; i < 10; i++) {
-      const assignedDate = new Date(today);
-      assignedDate.setDate(today.getDate() - i);
-      
-      const dueDate = new Date(assignedDate);
-      dueDate.setDate(assignedDate.getDate() + 3);
-
-      sampleTasks.push({
-        id: `sample-task-${i}`,
-        title: `Sample Learning Task ${i + 1}`,
-        description: 'This is a sample task for demonstration purposes.',
-        assignedDate: assignedDate.toISOString().split('T')[0],
-        dueDate: dueDate.toISOString().split('T')[0],
-        priority: ['high', 'medium', 'low'][i % 3],
-        status: ['pending', 'in-progress', 'completed'][i % 3],
-        estimatedTime: Math.floor(Math.random() * 4) + 1,
-        category: 'General Learning',
-        assignedBy: 'Learning Platform',
-        tags: ['Sample', 'Learning'],
-        courseId: 'SAMPLE-001',
-        courseName: 'Sample Course',
-        difficultyLevel: 'intermediate',
-        skillsGained: ['Problem Solving'],
-        taskType: 'assignment',
-        learningObjectives: ['Complete sample task'],
-        prerequisites: ['Basic knowledge'],
-        resources: [
-          { type: 'video', title: 'Sample Video', url: '#' }
-        ],
-        gradeWeight: 10,
-        maxAttempts: 2,
-        currentAttempt: 0,
-        isAIGenerated: false
-      });
-    }
-    
-    return sampleTasks;
-  };
+  }, []);
 
   // Filter tasks by selected date
   const getTasksForDate = (date) => {

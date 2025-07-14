@@ -6,6 +6,9 @@ import fieldRoutes from "./fieldRoutes.js";
 import voiceRoutes from "./voiceRoutes.js";
 import chatRoutes from "./chatRoutes.js";
 import authRoutes from "./authRoutes.js";
+import taskRoutes from "./taskRoutes.js";
+import dashboardRoutes from "./dashboardRoutes.js";
+import weeklyActivityRoutes from "./weeklyActivityRoutes.js";
 
 const router = express.Router();
 
@@ -32,5 +35,8 @@ router.use("/fields", fieldRoutes);
 router.use("/voice", voiceRoutes);
 router.use("/chat", chatRoutes);
 router.use("/auth", authRoutes);
+router.use("/tasks", taskRoutes);
+router.use("/dashboard", dashboardRoutes);
+router.use("/weekly-activity", weeklyActivityRoutes);
 
 export default router;
