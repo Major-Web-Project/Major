@@ -77,7 +77,7 @@ export const AuthScreen = () => {
 
         // Optionally, store token/user info, then navigate
         setTimeout(() => {
-          navigate("/dashboard"); // or your dashboard route
+          navigate("/"); // or your dashboard route
         }, 2000);
       } catch (error) {
         // Show error toast
