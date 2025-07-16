@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
+import { apiService } from '../../../services/api';
 
 
 // TODO: Database Integration for Calendar Task Statistics
@@ -57,9 +58,27 @@ const generateDummyDailyStats = (year, month) => {
 
 export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [dailyStats] = useState(() => 
-    generateDummyDailyStats(currentMonth.getFullYear(), currentMonth.getMonth())
-  );
+  const [dailyStats, setDailyStats] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const year = currentMonth.getFullYear();
+        const month = currentMonth.getMonth(); // 0-based
+        const res = await apiService.getCalendarDailyStats(month, year);
+        setDailyStats(res.data.dailyStats || {});
+      } catch (err) {
+        setError('Failed to load calendar data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStats();
+  }, [currentMonth]);
 
   const getDaysInMonth = (date) => {
     return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -113,25 +132,18 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
     const daysInMonth = getDaysInMonth(currentMonth);
     const firstDay = getFirstDayOfMonth(currentMonth);
     const days = [];
-
-    // Empty cells for days before the first day of the month
     for (let i = 0; i < firstDay; i++) {
       days.push(
         <div key={`empty-${i}`} className="h-24 border border-gray-600/30 bg-gray-800/20"></div>
       );
     }
-
-    // Days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-      const dayTasks = getTasksForDate(date);
       const dayStats = getStatsForDate(date);
       const isSelected = selectedDate.toDateString() === date.toDateString();
       const isToday = new Date().toDateString() === date.toDateString();
-      
-      const completionRate = dayStats ? dayStats.productivityScore : 0;
+      const completionRate = dayStats && dayStats.totalTasks > 0 ? Math.round((dayStats.completedTasks / dayStats.totalTasks) * 100) : 0;
       const hasData = dayStats && dayStats.totalTasks > 0;
-
       days.push(
         <div
           key={day}
@@ -142,26 +154,20 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
             hasData ? 'bg-gradient-to-br from-sky-200/50 to-sky-300/50 dark:from-gray-700/50 dark:to-gray-800/50' : 'bg-sky-50/50 dark:bg-gray-800/20'
           }`}
         >
-          {/* Date Number */}
           <div className={`text-sm font-bold mb-1 ${
             isToday ? 'text-yellow-400' : 
             hasData ? 'text-indigo-700 dark:text-white' : 'text-sky-600 dark:text-gray-500'
           }`}>
             {day}
           </div>
-
-          {/* Task Completion Indicator */}
-          {hasData && dayStats && (
+          {hasData && (
             <div className="space-y-1">
-              {/* Completion Rate Bar */}
               <div className="w-full bg-sky-300/50 rounded-full h-1.5 overflow-hidden dark:bg-gray-600/50">
                 <div 
                   className={`h-full transition-all duration-500 ${getCompletionColor(completionRate)}`}
                   style={{ width: `${completionRate}%` }}
                 ></div>
               </div>
-              
-              {/* Stats Summary */}
               <div className="flex items-center justify-between text-xs">
                 <span className="text-indigo-700 font-semibold dark:text-white">
                   {dayStats.completedTasks}/{dayStats.totalTasks}
@@ -170,8 +176,6 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
                   {getCompletionIcon(completionRate)}
                 </span>
               </div>
-              
-              {/* Completion Percentage */}
               <div className={`text-xs font-bold text-center ${
                 completionRate >= 70 ? 'text-green-400' : 
                 completionRate >= 50 ? 'text-yellow-400' : 'text-red-400'
@@ -180,13 +184,12 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
               </div>
             </div>
           )}
-
           {/* Legacy Task Dots (for tasks not in stats) */}
-          {dayTasks.length > 0 && !hasData && (
+          {getTasksForDate(date).length > 0 && !hasData && (
             <div className="flex flex-wrap gap-1">
-              {dayTasks.slice(0, 3).map((task, index) => (
+              {getTasksForDate(date).slice(0, 3).map((task, index) => (
                 <div
-                  key={task.id}
+                  key={task.id || index}
                   className={`w-2 h-2 rounded-full ${
                     task.priority === 'high' ? 'bg-red-500' :
                     task.priority === 'medium' ? 'bg-yellow-500' :
@@ -195,17 +198,15 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
                   title={task.title}
                 />
               ))}
-              {dayTasks.length > 3 && (
-                <div className="text-xs text-sky-600 dark:text-gray-400">+{dayTasks.length - 3}</div>
+              {getTasksForDate(date).length > 3 && (
+                <div className="text-xs text-sky-600 dark:text-gray-400">+{getTasksForDate(date).length - 3}</div>
               )}
             </div>
           )}
-
           {/* Today Indicator */}
           {isToday && (
             <div className="absolute top-1 right-1 w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></div>
           )}
-
           {/* High Productivity Badge */}
           {hasData && completionRate >= 90 && (
             <div className="absolute -top-1 -right-1 w-4 h-4 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center">
@@ -255,25 +256,30 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
           </div>
         </div>
 
-        {/* Calendar Grid */}
-        <div className="bg-sky-100/50 rounded-xl p-4 border border-sky-200/50 mb-6 dark:bg-gray-800/60 dark:border-gray-700/50">
-          {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-0 mb-2">
-            {dayNames.map(day => (
-              <div key={day} className="h-10 flex items-center justify-center text-sky-700 font-medium dark:text-gray-300">
-                {day}
-              </div>
-            ))}
-          </div>
+        {loading && <div className="text-center text-gray-500 py-8">Loading calendar...</div>}
+        {error && <div className="text-center text-red-500 py-8">{error}</div>}
 
-          {/* Calendar Days */}
-          <div className="grid grid-cols-7 gap-0">
-            {renderCalendarDays()}
+        {/* Calendar Grid */}
+        {!loading && !error && (
+          <div className="bg-sky-100/50 rounded-xl p-4 border border-sky-200/50 mb-6 dark:bg-gray-800/60 dark:border-gray-700/50">
+            {/* Day Headers */}
+            <div className="grid grid-cols-7 gap-0 mb-2">
+              {dayNames.map(day => (
+                <div key={day} className="h-10 flex items-center justify-center text-sky-700 font-medium dark:text-gray-300">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Days */}
+            <div className="grid grid-cols-7 gap-0">
+              {renderCalendarDays()}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Selected Date Statistics */}
-        {selectedDateStats && (
+        {selectedDateStats && !loading && !error && (
           <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-2xl p-6 border border-purple-400/30 mb-6 animate-fadeIn">
             <h3 className="text-indigo-700 font-bold text-xl mb-4 flex items-center gap-3 dark:text-white">
               <span className="text-2xl">📊</span>
@@ -284,7 +290,6 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
                 day: 'numeric' 
               })} Statistics
             </h3>
-            
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-blue-500/20 p-4 rounded-xl border border-blue-400/30 text-center">
                 <div className="text-blue-400 font-semibold text-sm">Total Tasks</div>
@@ -300,58 +305,10 @@ export const CalendarSection = ({ tasks, selectedDate, onDateSelect }) => {
               </div>
               <div className="bg-purple-500/20 p-4 rounded-xl border border-purple-400/30 text-center">
                 <div className="text-purple-400 font-semibold text-sm">Productivity</div>
-                <div className="text-indigo-700 text-2xl font-bold dark:text-white">{selectedDateStats.productivityScore}%</div>
+                <div className="text-indigo-700 text-2xl font-bold dark:text-white">{selectedDateStats.totalTasks > 0 ? Math.round((selectedDateStats.completedTasks / selectedDateStats.totalTasks) * 100) : 0}%</div>
               </div>
             </div>
-
-            {/* Detailed Performance Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-sky-100/50 p-4 rounded-xl border border-sky-200/50 dark:bg-white/10 dark:border-white/20">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">⏰</span>
-                  <div className="text-sky-700 font-semibold dark:text-gray-300">Time Spent</div>
-                </div>
-                <div className="text-indigo-700 text-xl font-bold dark:text-white">{selectedDateStats.totalTimeSpent}h</div>
-                <div className="text-sky-600 text-sm dark:text-gray-400">Total focus time</div>
-              </div>
-              
-              <div className="bg-sky-100/50 p-4 rounded-xl border border-sky-200/50 dark:bg-white/10 dark:border-white/20">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">🔥</span>
-                  <div className="text-sky-700 font-semibold dark:text-gray-300">Streak</div>
-                </div>
-                <div className="text-indigo-700 text-xl font-bold dark:text-white">{selectedDateStats.streakCount} days</div>
-                <div className="text-sky-600 text-sm dark:text-gray-400">Consecutive active days</div>
-              </div>
-              
-              <div className="bg-white/10 p-4 rounded-xl border border-white/20">
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">🎯</span>
-                  <div className="text-gray-300 font-semibold">Top Course</div>
-                </div>
-                <div className="text-white text-sm font-bold truncate">{selectedDateStats.topCourse}</div>
-                <div className="text-gray-400 text-xs">Most active subject</div>
-              </div>
-            </div>
-
-            {/* Progress Visualization */}
-            <div className="mt-6">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-gray-300 font-semibold">Daily Progress</span>
-                <span className="text-white font-bold">{selectedDateStats.productivityScore}%</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
-                <div 
-                  className={`h-4 rounded-full transition-all duration-1000 ${getCompletionColor(selectedDateStats.productivityScore)}`}
-                  style={{ width: `${selectedDateStats.productivityScore}%` }}
-                ></div>
-              </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-2">
-                <span>0%</span>
-                <span>50%</span>
-                <span>100%</span>
-              </div>
-            </div>
+            {/* You can add more detailed metrics here if your backend provides them */}
           </div>
         )}
 

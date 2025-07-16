@@ -369,7 +369,7 @@ Your comprehensive ${format.toUpperCase()} report has been generated and will be
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {categoryPerformance.map((category, index) => (
               <div
-                key={category.category}
+                key={`${category.category}-${index}`}
                 className="bg-gradient-to-r from-gray-800/80 to-gray-900/80 rounded-2xl p-6 border border-white/20 hover:border-white/30 transition-all duration-300"
               >
                 <h4 className="text-indigo-700 font-bold text-lg mb-4 flex items-center gap-2 dark:text-white">
@@ -487,9 +487,9 @@ Your comprehensive ${format.toUpperCase()} report has been generated and will be
             </div>
           ) : (
             <div className="space-y-6">
-              {efficiencyData.map((task, index) => (
+              {efficiencyData.map((task) => (
                 <div
-                  key={task.id}
+                  key={task.id || task.name || task.actual + '-' + task.estimated}
                   className="bg-white/10 rounded-xl p-6 border border-white/20 hover:border-white/30 transition-all duration-300"
                 >
                   <div className="flex items-start justify-between mb-4">

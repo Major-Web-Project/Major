@@ -1,31 +1,88 @@
 import React from 'react';
 
-export const WeeklyActivityChart = ({ data }) => {
-  const maxValue = 100; // Fixed max value for consistent scaling
-
-  // Rotate the array so today is always rightmost
-  let rotatedData = data;
-  if (data && data.length > 0) {
-    const today = new Date();
-    const todayLabel = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][today.getDay()];
-    const todayIndex = data.findIndex(item => item.day === todayLabel);
-    if (todayIndex !== -1) {
-      rotatedData = [...data.slice(todayIndex + 1), ...data.slice(0, todayIndex + 1)];
-    }
-  }
+export const WeeklyActivityChart = ({ data, allTasks }) => {
+  const maxValue = 100;
 
   const today = new Date();
+  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // Find the index of today in the rotated array
-  const todayIndex = rotatedData.findIndex(item => {
-    const itemDate = item.date ? new Date(item.date) : null;
+  function calculateDailyProgress(allTasks, currentDate = new Date()) {
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const parseDate = (dateStr) => new Date(dateStr);
+
+    // TASKS THAT WERE PENDING AT START OF DAY
+    const tasksPendingAtStartOfDay = allTasks.filter(task => {
+      const createdAt = parseDate(task.createdAt);
+      const updatedAt = parseDate(task.updatedAt);
+      const status = task.data?.status;
+
+      // Task must have been created before today ends
+      if (createdAt > endOfDay) return false;
+
+      // If it was already completed before the day started, it's not a goal
+      if (status === 'completed' && updatedAt < startOfDay) return false;
+
+      // If still pending at start of day, or completed during today
+      return createdAt <= endOfDay;
+    });
+
+    // TASKS COMPLETED TODAY
+    const tasksCompletedToday = allTasks.filter(task => {
+      const updatedAt = parseDate(task.updatedAt);
+      const status = task.data?.status;
+
+      return status === 'completed' && updatedAt >= startOfDay && updatedAt <= endOfDay;
+    });
+
+    const totalGoal = tasksPendingAtStartOfDay.length;
+    const completedCount = tasksCompletedToday.length;
+    const completionPercent = totalGoal === 0 ? 0 : Math.round((completedCount / totalGoal) * 100);
+
+    return {
+      totalGoal,
+      completedCount,
+      completionPercent,
+    };
+  }
+
+  // Generate data for the last 7 days
+  const dataToRender = Array.from({ length: 7 }).map((_, i) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - i));
+    const dayOfWeek = dayLabels[date.getDay()];
+    const dateString = date.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' in local time
+
+    const progress = calculateDailyProgress(allTasks, date);
+
+    const cappedCompletionPercent = Math.min(100, progress.completionPercent);
+
+    return {
+      day: dayOfWeek,
+      date: dateString,
+      goal: progress.totalGoal, // optional: for tooltip
+      completed: cappedCompletionPercent,
+      totalTasks: progress.totalGoal,
+      completedTasks: progress.completedCount,
+    };
+  });
+
+  const todayIndex = dataToRender.findIndex((item) => {
+    const itemDate = new Date(item.date);
     return (
-      itemDate &&
       itemDate.getFullYear() === today.getFullYear() &&
       itemDate.getMonth() === today.getMonth() &&
       itemDate.getDate() === today.getDate()
     );
   });
+
+  const maxGoalTasks = Math.max(...dataToRender.map((d) => d.goal), 1); // avoid division by zero
+
+  // Log today's progress
+  const todayProgress = calculateDailyProgress(allTasks);
 
   return (
     <div className="w-full bg-transparent">
@@ -70,10 +127,13 @@ export const WeeklyActivityChart = ({ data }) => {
         </div>
 
         {/* Chart Bars Area */}
-        <div className="ml-10 mr-2 h-45 flex items-end justify-between gap-1 relative z-10">
-          {rotatedData.map((item, index) => {
+        <div className="ml-10 mr-2 h-[170px] flex items-end justify-between gap-1 relative z-10">
+          {dataToRender.map((item, index) => {
             const isToday = index === todayIndex;
-            const isLast = index === rotatedData.length - 1;
+            const isLast = index === dataToRender.length - 1;
+
+            const goalHeight = 140;
+
             return (
               <div
                 key={item.day + (item.date || index)}
@@ -91,35 +151,35 @@ export const WeeklyActivityChart = ({ data }) => {
                 {/* Bars Container */}
                 <div className="relative w-full h-[170px] flex items-end justify-center gap-1">
                   {/* Goal Bar */}
-                  <div className="relative flex flex-col justify-end">
+                  <div className="relative flex flex-col justify-end group">
                     <div
-                      className={`w-8 rounded-t-sm shadow-sm transition-all duration-300 group ${isToday ? 'bg-yellow-400 hover:bg-yellow-300' : 'bg-blue-500 hover:bg-blue-400'}`}
-                      style={{ height: `${(item.goal / maxValue) * 170}px` }}
+                      className="w-8 rounded-t-sm shadow-sm transition-all duration-300 bg-blue-500 hover:bg-blue-400"
+                      style={{ height: `${goalHeight}px` }}
                     >
-                      {/* Tooltip */}
                       <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-10">
-                        Goal: {item.goal}%
+                        Goal (Pending/In-progress): {item.goal}
                       </div>
                     </div>
                   </div>
 
                   {/* Completed Bar */}
-                  <div className="relative flex flex-col justify-end">
+                  <div className="relative flex flex-col justify-end group">
                     <div
-                      className={`w-8 rounded-t-sm shadow-sm transition-all duration-300 group ${isToday ? 'bg-yellow-300 hover:bg-yellow-200' : 'bg-green-500 hover:bg-green-400'}`}
-                      style={{ height: `${(item.completed / maxValue) * 170}px` }}
+                      className="w-8 rounded-t-sm shadow-sm transition-all duration-300 bg-green-500 hover:bg-green-400"
+                      style={{ height: `${(item.completed / maxValue) * goalHeight}px` }}
                     >
                       <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-black/90 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-300 whitespace-nowrap z-10">
-                        Done: {item.completed}%
+                        Completed Tasks: {item.completedTasks}
+                        <br />
+                        Completion: {item.completed}%
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Day Label */}
-                <div className={`text-indigo-700 font-medium text-sm text-center dark:text-white ${isToday ? 'text-yellow-600 dark:text-yellow-300 font-bold' : ''}`}>
+                <div className="text-indigo-700 font-medium text-sm text-center dark:text-white">
                   {item.day}
-                  {isToday && <span className="ml-1 text-xs font-bold">(Today)</span>}
                 </div>
               </div>
             );

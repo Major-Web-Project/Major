@@ -7,6 +7,10 @@ export const StatisticsPieChart = ({ data }) => {
   const assignments = Number(data.assignments) || 0;
   const selfStudy = Number(data.selfStudy) || 0;
   const lectures = Number(data.lectures) || 0;
+  // Support total counts if provided (for future extension)
+  const totalAssignments = Number(data.totalAssignments) || assignments;
+  const totalSelfStudy = Number(data.totalSelfStudy) || selfStudy;
+  const totalLectures = Number(data.totalLectures) || lectures;
   const total = assignments + selfStudy + lectures;
 
   // If total is zero, show empty chart
@@ -16,6 +20,7 @@ export const StatisticsPieChart = ({ data }) => {
     {
       name: 'Assignments',
       value: assignments,
+      total: totalAssignments,
       percentage: total > 0 ? Math.round((assignments / safeTotal) * 100) : 0,
       color: '#ef4444', // red-500
       gradient: 'from-red-500 to-red-600',
@@ -24,6 +29,7 @@ export const StatisticsPieChart = ({ data }) => {
     {
       name: 'Self Study',
       value: selfStudy,
+      total: totalSelfStudy,
       percentage: total > 0 ? Math.round((selfStudy / safeTotal) * 100) : 0,
       color: '#22c55e', // green-500
       gradient: 'from-green-500 to-green-600',
@@ -32,6 +38,7 @@ export const StatisticsPieChart = ({ data }) => {
     {
       name: 'Lectures',
       value: lectures,
+      total: totalLectures,
       percentage: total > 0 ? Math.round((lectures / safeTotal) * 100) : 0,
       color: '#3b82f6', // blue-500
       gradient: 'from-blue-500 to-blue-600',
@@ -54,70 +61,69 @@ export const StatisticsPieChart = ({ data }) => {
     };
   });
 
-  // Function to create SVG path for pie segment
-  const createPath = (startAngle, endAngle) => {
-    if (isNaN(startAngle) || isNaN(endAngle) || startAngle === endAngle) return '';
-    const radius = 100;
-    const centerX = 100;
-    const centerY = 100;
-
-    const startRad = (startAngle * Math.PI) / 180;
-    const endRad = (endAngle * Math.PI) / 180;
-
-    const x1 = centerX + radius * Math.cos(startRad);
-    const y1 = centerY + radius * Math.sin(startRad);
-    const x2 = centerX + radius * Math.cos(endRad);
-    const y2 = centerY + radius * Math.sin(endRad);
-
-    const largeArcFlag = endAngle - startAngle <= 180 ? 0 : 1;
-
+  // Helper to create an SVG arc path for a donut segment
+  const describeArc = (cx, cy, r, thickness, startAngle, endAngle) => {
+    const innerR = r - thickness;
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const innerStart = polarToCartesian(cx, cy, innerR, endAngle);
+    const innerEnd = polarToCartesian(cx, cy, innerR, startAngle);
+    const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1';
     return [
-      `M ${centerX} ${centerY}`,
-      `L ${x1} ${y1}`,
-      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
-      'Z',
+      'M', start.x, start.y,
+      'A', r, r, 0, largeArcFlag, 0, end.x, end.y,
+      'L', innerEnd.x, innerEnd.y,
+      'A', innerR, innerR, 0, largeArcFlag, 1, innerStart.x, innerStart.y,
+      'Z'
     ].join(' ');
   };
+
+  function polarToCartesian(cx, cy, r, angle) {
+    const rad = (angle - 90) * Math.PI / 180.0;
+    return {
+      x: cx + r * Math.cos(rad),
+      y: cy + r * Math.sin(rad)
+    };
+  }
 
   // Calculate total percentage for center text
   const totalPercent = total > 0 ? 100 : 0;
 
+  // Empty state
+  if (assignments === 0 && selfStudy === 0 && lectures === 0) {
+    return (
+      <div className="w-full bg-transparent p-4 flex flex-col items-center justify-center min-h-[300px]">
+        <div className="text-4xl mb-4">📊</div>
+        <div className="text-sky-600 text-lg dark:text-gray-400 mb-2">Complete tasks to see your statistics!</div>
+      </div>
+    );
+  }
+
   return (
     <div className="w-full bg-transparent p-4">
-      {/* Chart Container - Fixed size to prevent overflow */}
       <div className="flex flex-col items-center h-full max-w-full">
-        {/* SVG Pie Chart - Contained within bounds */}
-        <div className="relative w-40 h-40 mb-4 flex-shrink-0">
+        <div className="relative w-64 h-64 mb-4 flex-shrink-0 rounded-full" style={{
+          background: 'transparent',
+          border: 'none',
+          boxShadow: 'none',
+          overflow: 'visible',
+        }}>
           <svg
-            width="160"
-            height="160"
-            viewBox="0 0 200 200"
-            className="transform -rotate-90 w-full h-full"
+            width="256"
+            height="256"
+            viewBox="0 0 256 256"
+            className="w-full h-full"
+            style={{ background: 'transparent' }}
           >
-            <defs>
-              {segmentsWithAngles.map((segment, index) => (
-                <linearGradient
-                  key={index}
-                  id={`gradient-${index}`}
-                  x1="0%"
-                  y1="0%"
-                  x2="100%"
-                  y2="100%"
-                >
-                  <stop offset="0%" stopColor={segment.color} />
-                  <stop offset="100%" stopColor={segment.hoverColor} />
-                </linearGradient>
-              ))}
-            </defs>
-
             {segmentsWithAngles.map((segment, index) => (
               <path
                 key={index}
-                d={createPath(segment.startAngle, segment.endAngle)}
-                fill={`url(#gradient-${index})`}
-                stroke="rgba(255,255,255,0.2)"
-                strokeWidth="2"
-                className={`transition-all duration-300 cursor-pointer ${
+                d={describeArc(128, 128, 112, 24, segment.startAngle, segment.endAngle)}
+                fill="none"
+                stroke={segment.color}
+                strokeWidth="24"
+                strokeLinecap="round"
+                className={`transition-all duration-500 cursor-pointer ${
                   hoveredSegment === segment.name
                     ? 'opacity-100 scale-105'
                     : 'opacity-90'
@@ -125,62 +131,57 @@ export const StatisticsPieChart = ({ data }) => {
                 style={{
                   filter:
                     hoveredSegment === segment.name
-                      ? `drop-shadow(0 0 15px ${segment.color}50)`
+                      ? `drop-shadow(0 0 20px ${segment.color}80)`
                       : 'none',
-                  transformOrigin: '100px 100px',
+                  transformOrigin: '128px 128px',
                 }}
                 onMouseEnter={() => setHoveredSegment(segment.name)}
                 onMouseLeave={() => setHoveredSegment(null)}
               />
             ))}
-
-            {/* Center circle for donut effect */}
-            <circle
-              cx="100"
-              cy="100"
-              r="35"
-              fill="rgba(0,0,0,0.8)"
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="2"
-            />
           </svg>
-
-          {/* Center text */}
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="text-indigo-700 text-lg font-bold dark:text-white">{totalPercent}%</div>
-              <div className="text-sky-600 text-xs dark:text-gray-400">Complete</div>
+          {/* Tooltip on hover */}
+          {hoveredSegment && (
+            <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-full bg-black/90 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 animate-fadeIn">
+              {(() => {
+                const seg = segments.find(s => s.name === hoveredSegment);
+                return `${seg.name}: ${seg.value}${seg.total ? ` / ${seg.total}` : ''} completed (${seg.percentage}%)`;
+              })()}
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Legend - Contained within bounds */}
-        <div className="space-y-2 w-full max-w-full">
+        {/* Glassmorphism Legend */}
+        <div className="space-y-2 w-full max-w-full mt-2">
           {segmentsWithAngles.map((segment, index) => (
             <div
               key={index}
-              className={`flex items-center justify-between p-2 rounded-lg transition-all duration-300 cursor-pointer w-full ${
+              className={`flex items-center justify-between p-3 rounded-xl transition-all duration-300 cursor-pointer w-full backdrop-blur-md bg-white/30 dark:bg-white/10 border border-white/20 shadow-md ${
                 hoveredSegment === segment.name
-                  ? 'bg-sky-100/50 scale-105 dark:bg-white/20'
-                  : 'bg-sky-50/50 hover:bg-sky-100/30 dark:bg-white/10 dark:hover:bg-white/15'
+                  ? 'scale-105 border-indigo-400'
+                  : 'hover:scale-105 hover:border-indigo-300'
               }`}
               onMouseEnter={() => setHoveredSegment(segment.name)}
               onMouseLeave={() => setHoveredSegment(null)}
+              style={{
+                boxShadow: hoveredSegment === segment.name ? `0 0 12px 2px ${segment.color}40` : undefined,
+              }}
             >
               <div className="flex items-center gap-2 min-w-0 flex-1">
                 <div
-                  className="w-3 h-3 rounded-full shadow-lg flex-shrink-0"
+                  className="w-4 h-4 rounded-full shadow-lg flex-shrink-0 border-2 border-white"
                   style={{ backgroundColor: segment.color }}
                 />
-                <span className="text-indigo-700 font-medium text-sm truncate dark:text-white">
+                <span className="text-indigo-700 font-semibold text-base truncate dark:text-white">
                   {segment.name}
                 </span>
               </div>
               <div className="text-right flex-shrink-0 ml-2">
-                <div className="text-indigo-700 font-bold text-sm dark:text-white">
+                <div className="text-indigo-700 font-bold text-lg dark:text-white">
                   {segment.percentage}%
                 </div>
-                <div className="text-sky-600 text-xs dark:text-gray-400">{segment.value}</div>
+                <div className="text-sky-600 text-sm dark:text-gray-400">
+                  {segment.value}{segment.total ? ` / ${segment.total}` : ''}
+                </div>
               </div>
             </div>
           ))}

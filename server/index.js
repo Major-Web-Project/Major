@@ -17,6 +17,7 @@ const __dirname = dirname(__filename);
 import apiRoutes from "./routes/index.js";
 import errorHandler from "./middleware/errorHandler.js";
 import notFound from "./middleware/notFound.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,7 +25,7 @@ const PORT = process.env.PORT || 5000;
 // Enhanced middleware with better error handling
 app.use(
   cors({
-    origin: true,
+    origin: "http://localhost:5173", // your frontend dev URL
     credentials: true,
     optionsSuccessStatus: 200,
   })
@@ -41,6 +42,7 @@ if (process.env.NODE_ENV === "production") {
 
 // Mount API routes
 app.use("/api", apiRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
 // 404 middleware for API routes
 app.use(notFound);

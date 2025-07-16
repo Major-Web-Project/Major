@@ -9,22 +9,8 @@ const api = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
+  withCredentials: true, // Always send cookies
 });
-
-// Request interceptor
-api.interceptors.request.use(
-  (config) => {
-    // Add auth token if available
-    const token = localStorage.getItem("authToken");
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
 
 // Response interceptor with better error handling
 api.interceptors.response.use(
@@ -211,6 +197,28 @@ export const apiService = {
       return await api.put(`/tasks/${taskId}`, { data });
     } catch (error) {
       console.warn("Task update failed");
+      return Promise.reject(error);
+    }
+  },
+
+  // Get calendar daily stats for a given month and year
+  getCalendarDailyStats: async (month, year) => {
+    try {
+      return await api.get(
+        `/dashboard/calendar-daily-stats?month=${month}&year=${year}`
+      );
+    } catch (error) {
+      console.warn("Calendar daily stats fetch failed");
+      return Promise.reject(error);
+    }
+  },
+
+  // Get tasks for a specific date
+  getTasksByDate: async (date) => {
+    try {
+      return await api.get(`/tasks/by-date?date=${date}`);
+    } catch (error) {
+      console.warn("Tasks by date fetch failed");
       return Promise.reject(error);
     }
   },

@@ -26,32 +26,35 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate();
 
-  // Sync user state with localStorage on mount
+  // Check session on mount to persist login state
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    
-    if (token && userData) {
-      setUser(JSON.parse(userData));
-      setIsAuthenticated(true);
-    } else {
-      setUser(null);
-      setIsAuthenticated(false);
-    }
+    const checkSession = async () => {
+      try {
+        const res = await fetch('/api/auth/profile', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setUser(data.user);
+          setIsAuthenticated(true);
+        } else {
+          setUser(null);
+          setIsAuthenticated(false);
+        }
+      } catch {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+    checkSession();
   }, []);
 
   // Handle login success
-  const handleLogin = (userData, token) => {
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('userData', JSON.stringify(userData));
+  const handleLogin = (userData) => {
     setUser(userData);
     setIsAuthenticated(true);
   };
 
   // Handle logout
   const handleLogout = () => {
-    localStorage.removeItem('authToken');
-    localStorage.removeItem('userData');
     setUser(null);
     setIsAuthenticated(false);
     navigate('/');

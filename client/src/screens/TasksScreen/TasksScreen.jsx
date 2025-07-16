@@ -9,38 +9,57 @@ import { apiService } from '../../services/api';
 export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, goalData, onTaskComplete }) => {
   const [tasks, setTasks] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [loading, setLoading] = useState(false);
+  const [tasksForDate, setTasksForDate] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [errorTasks, setErrorTasks] = useState(null);
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const fetchUserTasks = async () => {
-      setLoading(true);
+      setLoadingTasks(true);
       try {
         const res = await apiService.getTasks();
         // Map backend tasks to UI format (flatten data field)
-        const userTasks = res.data.tasks.map(task => ({ id: task._id, ...task.data }));
+        const userTasks = res.data.tasks.map(task => ({
+          id: task._id,
+          ...task.data,
+          status: task.status || (task.data ? task.data.status : "pending") || "pending"
+        }));
         setTasks(userTasks);
       } catch (error) {
         console.error('Failed to fetch tasks:', error);
       } finally {
-        setLoading(false);
+        setLoadingTasks(false);
       }
     };
     fetchUserTasks();
   }, []);
 
-  // Filter tasks by selected date
-  const getTasksForDate = (date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return tasks.filter(
-      (task) =>
-        task.assignedDate === dateStr ||
-        task.dueDate === dateStr ||
-        (task.assignedDate <= dateStr && task.dueDate >= dateStr)
-    );
-  };
-
-  const selectedDateTasks = getTasksForDate(selectedDate);
+  // Fetch tasks for the selected date from backend
+  useEffect(() => {
+    const fetchTasksForDate = async () => {
+      setLoadingTasks(true);
+      setErrorTasks(null);
+      try {
+        const dateStr = selectedDate.toISOString().slice(0, 10);
+        const res = await apiService.getTasksByDate(dateStr);
+        // Flatten the data field for each task
+        const mappedTasks = (res.data.tasks || []).map(task => ({
+          id: task._id,
+          ...task.data,
+          createdAt: task.createdAt,
+          updatedAt: task.updatedAt,
+        }));
+        setTasksForDate(mappedTasks);
+      } catch (err) {
+        setErrorTasks('Failed to fetch tasks for this date');
+        setTasksForDate([]);
+      } finally {
+        setLoadingTasks(false);
+      }
+    };
+    fetchTasksForDate();
+  }, [selectedDate]);
 
   // Get current course name for display
   const getCurrentCourseName = () => {
@@ -50,7 +69,7 @@ export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, g
     return 'Current Course';
   };
 
-  if (loading) {
+  if (loadingTasks) {
     return (
       <div className="min-h-screen relative overflow-hidden bg-mint-100 text-indigo-700 dark:bg-background dark:text-primary">
         <div className="fixed inset-0 w-full h-full z-0">
@@ -163,10 +182,10 @@ export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, g
                   Total Tasks
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {tasks.length}
+                  {tasksForDate.length}
                 </div>
                 <div className="text-sky-600 text-xs dark:text-gray-400">
-                  {tasks.filter(t => t.isAIGenerated).length} AI-generated
+                  {tasksForDate.filter(t => t.isAIGenerated).length} AI-generated
                 </div>
               </div>
               <div className="bg-sky-100/50 backdrop-blur-sm rounded-xl p-4 border border-sky-200/50 dark:bg-white/10 dark:border-white/20">
@@ -174,12 +193,12 @@ export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, g
                   Completed
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {tasks.filter((t) => t.status === 'completed').length}
+                  {tasksForDate.filter((t) => t.status === 'completed').length}
                 </div>
                 <div className="text-sky-600 text-xs dark:text-gray-400">
                   {Math.round(
-                    (tasks.filter((t) => t.status === 'completed').length /
-                      Math.max(tasks.length, 1)) * 100
+                    (tasksForDate.filter((t) => t.status === 'completed').length /
+                      Math.max(tasksForDate.length, 1)) * 100
                   )}% completion rate
                 </div>
               </div>
@@ -188,43 +207,41 @@ export const TasksScreen = ({ userProfile, learningData, aiTasksData, roadmap, g
                   In Progress
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {tasks.filter(t => t.status === 'in-progress').length}
+                  {tasksForDate.filter(t => t.status === 'in-progress').length}
                 </div>
                 <div className="text-sky-600 text-xs dark:text-gray-400">Active tasks</div>
               </div>
               <div className="bg-sky-100/50 backdrop-blur-sm rounded-xl p-4 border border-sky-200/50 dark:bg-white/10 dark:border-white/20">
                 <div className="text-orange-400 font-semibold text-sm">
-                  Current Phase
+                  Productivity
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {learningData?.currentPhase || 1}
+                  {tasksForDate.length > 0 ? Math.round((tasksForDate.filter(t => t.status === 'completed').length / tasksForDate.length) * 100) : 0}%
                 </div>
-                <div className="text-sky-600 text-xs dark:text-gray-400">Learning phase</div>
+                <div className="text-sky-600 text-xs dark:text-gray-400">Today's productivity</div>
               </div>
             </div>
           </div>
 
-          {/* Calendar Section */}
-          <div className="mb-10">
-            <CalendarSection
-              tasks={tasks}
-              selectedDate={selectedDate}
-              onDateSelect={setSelectedDate}
-            />
-          </div>
-
-          {/* Daily Task Charge Section */}
-          <div className="mb-10">
-            <DailyTaskChargeSection
-              tasks={selectedDateTasks}
-              selectedDate={selectedDate}
-              onTaskComplete={onTaskComplete}
-            />
-          </div>
-
-          {/* Task Report Section */}
-          <div className="mb-10">
-            <TaskReportSection tasks={tasks} />
+          {/* Main Side-by-Side Layout */}
+          <div className="flex flex-col lg:flex-row gap-8 items-start">
+            {/* Calendar on the left */}
+            <div className="w-full lg:w-1/2 xl:w-2/5">
+              <CalendarSection
+                tasks={tasksForDate}
+                selectedDate={selectedDate}
+                onDateSelect={setSelectedDate}
+              />
+            </div>
+            {/* Daily Report Table on the right */}
+            <div className="w-full lg:w-1/2 xl:w-3/5">
+              <DailyTaskChargeSection
+                selectedDate={selectedDate}
+                tasks={tasksForDate}
+                loading={loadingTasks}
+                error={errorTasks}
+              />
+            </div>
           </div>
         </div>
       </div>

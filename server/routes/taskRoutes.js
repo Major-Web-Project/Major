@@ -6,6 +6,7 @@ import {
   getTaskById,
   updateTask,
   deleteTask,
+  getTasksByDate,
 } from "../controllers/taskController.js";
 
 const router = express.Router();
@@ -18,6 +19,9 @@ router.post("/", createTask);
 
 // GET /api/tasks - Get all tasks for user
 router.get("/", getTasks);
+
+// GET /api/tasks/by-date?date=YYYY-MM-DD - Get all tasks for a specific date
+router.get("/by-date", getTasksByDate);
 
 // GET /api/tasks/:id - Get a single task by id
 router.get("/:id", getTaskById);

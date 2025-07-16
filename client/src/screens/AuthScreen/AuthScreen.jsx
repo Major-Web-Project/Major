@@ -69,14 +69,15 @@ export const AuthScreen = ({ onLogin }) => {
           {
             email: formData.email,
             password: formData.password,
-          }
+          },
+          { withCredentials: true } // Ensure cookies are set
         );
         // Show toast with message from API response
         toast.success(response.data.message || "Login successful!");
 
-        // Call onLogin with user data and token
-        if (onLogin && response.data.user && response.data.token) {
-          onLogin(response.data.user, response.data.token);
+        // Call onLogin with user data only (no token)
+        if (onLogin && response.data.user) {
+          onLogin(response.data.user);
         }
 
         // Navigate after successful login
@@ -101,13 +102,14 @@ export const AuthScreen = ({ onLogin }) => {
             username: formData.name,
             email: formData.email,
             password: formData.password,
-          }
+          },
+          { withCredentials: true } // Ensure cookies are set
         );
         toast.success(response.data.message || "Signup successful!");
         
-        // Call onLogin with user data and token for signup too
-        if (onLogin && response.data.user && response.data.token) {
-          onLogin(response.data.user, response.data.token);
+        // Call onLogin with user data only (no token)
+        if (onLogin && response.data.user) {
+          onLogin(response.data.user);
         }
         
         setTimeout(() => {

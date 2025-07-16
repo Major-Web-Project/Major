@@ -139,11 +139,19 @@ export const createTask = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Task data is required" });
     }
+    // Defensive: Ensure status is set
+    if (!data.status) data.status = "pending";
     const task = new Task({ user: req.user._id, data });
     await task.save();
     await calculateAndStoreWeeklyActivity(req.user._id);
-    res.status(201).json({ success: true, task });
+    // Always return status at top level
+    const responseTask = {
+      ...task.toObject(),
+      status: task.data.status || "pending",
+    };
+    res.status(201).json({ success: true, task: responseTask });
   } catch (error) {
+    console.error("Failed to create task:", error);
     res.status(500).json({
       success: false,
       message: "Failed to create task",
@@ -182,11 +190,28 @@ export const updateTask = async (req, res) => {
         .json({ success: false, message: "Cannot edit a completed task" });
 
     const { data } = req.body;
+    if (!data) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Task data is required" });
+    }
+    // Log the received data for debugging
+    console.log("[updateTask] Received data:", JSON.stringify(data, null, 2));
+    // Defensive: Ensure status is set
+    if (!data.status) data.status = task.data.status || "pending";
     task.data = data;
     await task.save();
+    // Log the saved task for debugging
+    console.log("[updateTask] Saved task:", JSON.stringify(task, null, 2));
     await calculateAndStoreWeeklyActivity(req.user._id);
-    res.json({ success: true, task });
+    // Always return status at top level
+    const responseTask = {
+      ...task.toObject(),
+      status: task.data.status || "pending",
+    };
+    res.json({ success: true, task: responseTask });
   } catch (error) {
+    console.error("Failed to update task:", error);
     res.status(500).json({
       success: false,
       message: "Failed to update task",
@@ -231,5 +256,50 @@ export const getTaskById = async (req, res) => {
       message: "Failed to fetch task",
       error: error.message,
     });
+  }
+};
+
+// Get tasks by date for the authenticated user
+export const getTasksByDate = async (req, res) => {
+  try {
+    if (!req.user || !req.user._id) {
+      return res.status(401).json({ message: "User not authenticated" });
+    }
+    const { date } = req.query;
+    if (!date) {
+      return res.status(400).json({ message: "Date is required" });
+    }
+
+    // Use UTC to define the start and end of the day to avoid timezone issues
+    const startOfDay = new Date(`${date}T00:00:00.000Z`);
+    const endOfDay = new Date(`${date}T23:59:59.999Z`);
+
+    // Find all tasks for the user within the specified day
+    const tasksFromDb = await Task.find({
+      user: req.user._id,
+      createdAt: { $gte: startOfDay, $lte: endOfDay },
+    });
+
+    // **CRUCIAL FIX**: Transform each task into the flat structure the frontend expects.
+    // This moves details from the nested 'data' object to the top level.
+    const formattedTasks = tasksFromDb.map((task) => {
+      const taskData = task.data || {}; // Handle cases where 'data' might be missing
+      return {
+        id: task._id,
+        name: taskData.name || "Untitled Task", // Provide default values to prevent errors
+        status: taskData.status || "pending",
+        priority: taskData.priority || "medium",
+        notes: taskData.notes,
+        estimatedTime: taskData.estimatedTime,
+        completionTime: taskData.completionTime,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+      };
+    });
+
+    res.json(formattedTasks);
+  } catch (err) {
+    console.error("[getTasksByDate] Error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };

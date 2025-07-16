@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export const StatusHistoryChart = ({ data }) => {
+  const [hoveredIndex, setHoveredIndex] = useState(null);
   const history = data || [];
   const safeHistory = history.map(item => ({
     date: item?.date || '',
@@ -15,7 +16,7 @@ export const StatusHistoryChart = ({ data }) => {
   const generatePath = () => {
     if (safeHistory.length === 0) return '';
     const width = 400;
-    const height = 200;
+    const height = 350;
     const padding = 20;
     const points = safeHistory.map((item, index) => {
       const x = padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
@@ -33,7 +34,7 @@ export const StatusHistoryChart = ({ data }) => {
   const generateAreaPath = () => {
     if (safeHistory.length === 0) return '';
     const width = 400;
-    const height = 200;
+    const height = 350;
     const padding = 20;
     const points = safeHistory.map((item, index) => {
       const x = padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
@@ -52,8 +53,14 @@ export const StatusHistoryChart = ({ data }) => {
     return `M ${firstX},${height - padding} L ${points.join(' L ')} L ${lastX},${height - padding} Z`;
   };
 
+  // Helper to format date as 'MMM d'
+  function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
   return (
-    <div className="w-full h-80 bg-gradient-to-br from-sky-100/50 to-sky-200/50 rounded-2xl p-6 backdrop-blur-sm border border-sky-200/50 dark:from-gray-900/50 dark:to-gray-800/50 dark:border-white/10">
+    <div className="w-full h-[500px] bg-gradient-to-br from-sky-100/50 to-sky-200/50 rounded-2xl p-6 backdrop-blur-sm border border-sky-200/50 dark:from-gray-900/50 dark:to-gray-800/50 dark:border-white/10">
       {/* Chart Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-sky-600 text-sm dark:text-gray-400">Progress Over Time</div>
@@ -63,12 +70,12 @@ export const StatusHistoryChart = ({ data }) => {
         </div>
       </div>
 
-      {/* SVG Chart */}
-      <div className="relative w-full h-56 overflow-hidden">
+      {/* Chart Area */}
+      <div className="relative w-full h-[350px] overflow-hidden">
         <svg
           width="100%"
           height="100%"
-          viewBox="0 0 400 200"
+          viewBox="0 0 400 350"
           className="absolute inset-0"
         >
           {/* Grid Lines */}
@@ -76,11 +83,11 @@ export const StatusHistoryChart = ({ data }) => {
             <pattern
               id="grid"
               width="40"
-              height="20"
+              height="35"
               patternUnits="userSpaceOnUse"
             >
               <path
-                d="M 40 0 L 0 0 0 20"
+                d="M 40 0 L 0 0 0 35"
                 fill="none"
                 stroke="rgba(255,255,255,0.1)"
                 strokeWidth="0.5"
@@ -124,64 +131,6 @@ export const StatusHistoryChart = ({ data }) => {
               filter: 'drop-shadow(0 0 8px rgba(147, 51, 234, 0.5))',
             }}
           />
-
-          {/* Data points */}
-          {safeHistory.map((item, index) => {
-            const width = 400;
-            const height = 200;
-            const padding = 20;
-            const x =
-              padding + (index / (safeHistory.length - 1)) * (width - 2 * padding);
-            const y =
-              height -
-              padding -
-              ((item.value - minValue) / range) * (height - 2 * padding);
-
-            return (
-              <g key={index}>
-                {/* Outer glow */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="8"
-                  fill="rgba(147, 51, 234, 0.3)"
-                  className="animate-pulse"
-                />
-                {/* Main point */}
-                <circle
-                  cx={x}
-                  cy={y}
-                  r="4"
-                  fill="url(#lineGradient)"
-                  stroke="white"
-                  strokeWidth="2"
-                  className="hover:r-6 transition-all duration-300 cursor-pointer"
-                />
-
-                {/* Tooltip on hover */}
-                <g className="opacity-0 hover:opacity-100 transition-opacity duration-300">
-                  <rect
-                    x={x - 25}
-                    y={y - 35}
-                    width="50"
-                    height="25"
-                    rx="4"
-                    fill="rgba(0,0,0,0.8)"
-                  />
-                  <text
-                    x={x}
-                    y={y - 20}
-                    textAnchor="middle"
-                    fill="white"
-                    fontSize="10"
-                    fontWeight="bold"
-                  >
-                    {item.value}%
-                  </text>
-                </g>
-              </g>
-            );
-          })}
         </svg>
 
         {/* Y-axis labels */}
@@ -193,9 +142,19 @@ export const StatusHistoryChart = ({ data }) => {
 
         {/* X-axis labels */}
         <div className="absolute bottom-0 left-0 w-full flex justify-between text-sky-600 text-xs px-6 dark:text-gray-400">
-          <span>Jan 1</span>
-          <span>Jan 6</span>
-          <span>Jan 12</span>
+          {safeHistory.length > 0 ? (
+            <>
+              <span>{formatDate(safeHistory[0].date)}</span>
+              <span>{formatDate(safeHistory[Math.floor(safeHistory.length / 2)].date)}</span>
+              <span>{formatDate(safeHistory[safeHistory.length - 1].date)}</span>
+            </>
+          ) : (
+            <>
+              <span>Jan 1</span>
+              <span>Jan 6</span>
+              <span>Jan 12</span>
+            </>
+          )}
         </div>
       </div>
     </div>

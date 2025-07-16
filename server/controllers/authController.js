@@ -71,11 +71,12 @@ class AuthController {
       );
 
       // Set cookie options
+      const isProduction = process.env.NODE_ENV === "production";
       const cookieOptions = {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production", // Only send over HTTPS in production
-        sameSite: "strict",
+        secure: isProduction, // true in production, false in dev
+        sameSite: isProduction ? "strict" : "lax", // "lax" in dev, "strict" in prod
       };
 
       // Set token in cookie
@@ -176,11 +177,12 @@ class AuthController {
       );
 
       // Set cookie options
+      const isProduction = process.env.NODE_ENV === "production";
       const cookieOptions = {
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
+        secure: isProduction, // true in production, false in dev
+        sameSite: isProduction ? "strict" : "lax", // "lax" in dev, "strict" in prod
       };
 
       // Set token in cookie

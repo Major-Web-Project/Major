@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { apiService } from '../../../services/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
 export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const reports = data || [];
-  const [selectedDate, setSelectedDate] = useState(0);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [expandedTask, setExpandedTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [showAddTask, setShowAddTask] = useState(false);
@@ -15,9 +17,21 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     priority: 'medium',
     notes: '',
     estimatedTime: '',
+    type: 'assignment',
   });
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(true);
 
-  const currentReport = reports[selectedDate] || { tasks: [] };
+  const selectedDateString = selectedDate.toISOString().slice(0, 10);
+
+  // Flatten all tasks and filter by createdAt date
+  const allTasks = (reports.flatMap(r => r.tasks || []));
+  const tasksForSelectedDate = allTasks.filter(task => {
+    if (!task.createdAt) return false;
+    const taskDate = new Date(task.createdAt);
+    if (isNaN(taskDate.getTime())) return false;
+    return taskDate.toISOString().slice(0, 10) === selectedDateString;
+  });
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -76,25 +90,33 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     setEditForm(task);
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingTask) return;
 
     const updatedData = [...reports];
-    const reportIndex = selectedDate;
+    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === editingTask
     );
 
     if (taskIndex !== -1) {
-      updatedData[reportIndex].tasks[taskIndex] = {
+      const now = new Date().toISOString();
+      const updatedTask = {
         ...updatedData[reportIndex].tasks[taskIndex],
         ...editForm,
-        completionTime:
-          editForm.status === 'completed'
-            ? new Date().toLocaleTimeString()
-            : undefined,
+        updatedAt: now,
+        completionTime: editForm.status === 'completed' ? new Date().toLocaleTimeString() : undefined,
+        type: editForm.type || updatedData[reportIndex].tasks[taskIndex].type || 'assignment',
       };
+      updatedData[reportIndex].tasks[taskIndex] = updatedTask;
       setData(updatedData);
+      try {
+        await apiService.updateTask(editingTask, updatedTask);
+        if (onTaskCreated) onTaskCreated();
+      } catch (error) {
+        alert('Failed to update task. Please try again.');
+        console.error(error);
+      }
     }
 
     setEditingTask(null);
@@ -109,14 +131,18 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const handleAddTask = async () => {
     if (!newTaskForm.name?.trim()) return;
 
+    const now = new Date().toISOString();
     const newTask = {
       id: Date.now().toString(),
       name: newTaskForm.name,
       status: newTaskForm.status,
       priority: newTaskForm.priority,
       notes: newTaskForm.notes || '',
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
       estimatedTime: newTaskForm.estimatedTime,
+      completionTime: newTaskForm.status === 'completed' ? new Date().toLocaleTimeString() : undefined,
+      type: newTaskForm.type,
     };
 
     try {
@@ -128,6 +154,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
       priority: 'medium',
       notes: '',
       estimatedTime: '',
+      type: 'assignment',
     });
     setShowAddTask(false);
     } catch (error) {
@@ -138,7 +165,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
 
   const handleStatusChange = async (taskId, newStatus) => {
     const updatedData = [...reports];
-    const reportIndex = selectedDate;
+    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
     );
@@ -167,7 +194,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
 
   const handlePriorityChange = (taskId, newPriority) => {
     const updatedData = [...reports];
-    const reportIndex = selectedDate;
+    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
     );
@@ -181,50 +208,66 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     }
   };
 
+  // Helper to check if selected date is today (local time)
+  const isToday = () => {
+    const today = new Date();
+    return (
+      selectedDate.getFullYear() === today.getFullYear() &&
+      selectedDate.getMonth() === today.getMonth() &&
+      selectedDate.getDate() === today.getDate()
+    );
+  };
+
+  const fetchStatusHistory = async () => {
+    try {
+      setStatusHistoryLoading(true);
+      const res = await fetch('/api/dashboard/status-history', { credentials: 'include' });
+      const data = await res.json();
+      setStatusHistory(data.history || []);
+    } catch (err) {
+      setStatusHistory([]);
+      console.error('Failed to fetch status history:', err);
+    } finally {
+      setStatusHistoryLoading(false);
+    }
+  };
+
   return (
     <div className="w-full bg-mint-100 rounded-2xl p-4 sm:p-6 border border-mint-200 dark:bg-gradient-to-br dark:from-gray-900/50 dark:to-gray-800/50 dark:border-white/10">
-      {/* Header with Date Selector and Add Task Button */}
+      {/* Header with Date Picker and Add Task Button */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <h3 className="text-xl font-bold text-indigo-700 flex items-center gap-2 dark:text-white">
           <span className="text-2xl">📋</span>
           Daily Tasks
         </h3>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-          {/* Date Selector */}
-          <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-            {reports.map((report, index) => {
-              let label = "Invalid Date";
-              if (report.date && !isNaN(new Date(report.date).getTime())) {
-                label = new Date(report.date).toLocaleDateString('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                });
-              }
-              return (
-              <Button
-                key={index}
-                onClick={() => setSelectedDate(index)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-300 whitespace-nowrap ${
-                  selectedDate === index
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-white/10 text-gray-300 hover:bg-white/20'
-                }`}
-              >
-                  {label}
-              </Button>
-              );
-            })}
+          {/* Advanced Calendar Date Picker */}
+          <div className="flex items-center gap-2">
+            <DatePicker
+              selected={selectedDate}
+              onChange={date => setSelectedDate(date)}
+              maxDate={new Date()}
+              dateFormat="MMM d, yyyy"
+              className="px-3 py-2 rounded-lg text-sm font-medium bg-white/10 text-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              calendarClassName="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700"
+              popperPlacement="bottom-end"
+              showMonthDropdown
+              showYearDropdown
+              dropdownMode="select"
+            />
           </div>
 
           {/* Add Task Button */}
-          <Button
-            onClick={() => setShowAddTask(true)}
-            className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-lg transition-all duration-300 flex items-center gap-2 whitespace-nowrap"
-          >
-            <span className="text-lg">➕</span>
-            <span className="hidden sm:inline">Add Task</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
+          {isToday() && (
+            <Button
+              onClick={() => setShowAddTask(true)}
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-lg transition-all duration-300 flex items-center gap-2 whitespace-nowrap"
+            >
+              <span className="text-lg">➕</span>
+              <span className="hidden sm:inline">Add Task</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -237,10 +280,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">
-                Task Name
-              </label>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300" htmlFor="add-task-name">Task Name</label>
               <input
+                id="add-task-name"
                 type="text"
                 value={newTaskForm.name}
                 onChange={(e) =>
@@ -248,13 +290,13 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                 }
                 className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-black placeholder-sky-600"
                 placeholder="Enter task name..."
+                autoComplete="off"
               />
             </div>
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">
-                Estimated Time
-              </label>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300" htmlFor="add-task-estimated-time">Estimated Time</label>
               <input
+                id="add-task-estimated-time"
                 type="text"
                 value={newTaskForm.estimatedTime}
                 onChange={(e) =>
@@ -265,6 +307,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                 }
                 className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-black placeholder-sky-600"
                 placeholder="e.g., 2 hours"
+                autoComplete="off"
               />
             </div>
             <div>
@@ -295,6 +338,18 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                 <option value="pending">⏳ Pending</option>
                 <option value="in-progress">🔄 In Progress</option>
                 <option value="completed">✅ Completed</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">Type</label>
+              <select
+                value={newTaskForm.type}
+                onChange={e => setNewTaskForm({ ...newTaskForm, type: e.target.value })}
+                className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-black"
+              >
+                <option value="assignment">📕 Assignment</option>
+                <option value="selfStudy">📗 Self Study</option>
+                <option value="lecture">📘 Lecture</option>
               </select>
             </div>
             <div className="md:col-span-2">
@@ -349,7 +404,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                       </div>
 
         {/* Task Rows */}
-        {(currentReport.tasks || []).map((task, index) => (
+        {(tasksForSelectedDate || []).map((task, index) => (
           <div key={task.id} className="space-y-2">
             {/* Desktop Layout */}
             <div className="hidden lg:grid grid-cols-12 gap-4 p-4 bg-white/10 rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
@@ -360,14 +415,19 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                 </div>
                       <div>
                         {editingTask === task.id ? (
+                          <>
+                            <label htmlFor={`edit-task-name-${task.id}`} className="sr-only">Task Name</label>
                           <input
+                              id={`edit-task-name-${task.id}`}
                             type="text"
                       value={editForm.name || ''}
                             onChange={(e) =>
                               setEditForm({ ...editForm, name: e.target.value })
                             }
                       className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                              autoComplete="off"
                           />
+                          </>
                         ) : (
                     <>
                       <div className="text-indigo-700 font-medium dark:text-white">{task.name}</div>
@@ -538,14 +598,19 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                   </div>
                   <div className="min-w-0 flex-1">
                     {editingTask === task.id ? (
+                      <>
+                        <label htmlFor={`edit-task-name-${task.id}`} className="sr-only">Task Name</label>
                       <input
+                          id={`edit-task-name-${task.id}`}
                         type="text"
                         value={editForm.name || ''}
                         onChange={(e) =>
                           setEditForm({ ...editForm, name: e.target.value })
                         }
                         className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                          autoComplete="off"
                       />
+                      </>
                     ) : (
                       <>
                         <div className="text-indigo-700 font-medium dark:text-white truncate">
@@ -758,16 +823,18 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         ))}
 
         {/* Empty State */}
-        {(currentReport.tasks || []).length === 0 && (
+        {(tasksForSelectedDate || []).length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📋</div>
             <div className="text-sky-600 text-lg dark:text-gray-400">No tasks for this date</div>
-            <Button
-              onClick={() => setShowAddTask(true)}
-              className="mt-4 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 text-white px-6 py-3 rounded-lg transition-all duration-300"
-            >
-              Add Your First Task
-            </Button>
+            {isToday() && (
+              <Button
+                onClick={() => setShowAddTask(true)}
+                className="mt-4 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 text-white px-6 py-3 rounded-lg transition-all duration-300"
+              >
+                Add Your First Task
+              </Button>
+            )}
           </div>
         )}
       </div>
@@ -777,13 +844,13 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-3 sm:p-4 rounded-xl border border-green-500/30">
           <div className="text-green-400 font-semibold text-sm">Completed</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(currentReport.tasks || []).filter((t) => t.status === 'completed').length}
+            {(tasksForSelectedDate || []).filter((t) => t.status === 'completed').length}
           </div>
           <div className="text-mint-700 text-xs dark:text-green-300">
             {Math.round(
-              ((currentReport.tasks || []).filter((t) => t.status === 'completed')
+              ((tasksForSelectedDate || []).filter((t) => t.status === 'completed')
                 .length /
-                Math.max((currentReport.tasks || []).length, 1)) *
+                Math.max((tasksForSelectedDate || []).length, 1)) *
                 100
             )}
             % done
@@ -792,14 +859,14 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
           <div className="text-yellow-700 font-semibold text-sm dark:text-yellow-400">In Progress</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(currentReport.tasks || []).filter((t) => t.status === 'in-progress').length}
+            {(tasksForSelectedDate || []).filter((t) => t.status === 'in-progress').length}
           </div>
           <div className="text-yellow-700 text-xs dark:text-yellow-300">Active tasks</div>
         </div>
         <div className="bg-gradient-to-r from-red-500/20 to-pink-500/20 p-3 sm:p-4 rounded-xl border border-red-500/30">
           <div className="text-red-400 font-semibold text-sm">Pending</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(currentReport.tasks || []).filter((t) => t.status === 'pending').length}
+            {(tasksForSelectedDate || []).filter((t) => t.status === 'pending').length}
           </div>
           <div className="text-pink-700 text-xs dark:text-red-300">Waiting to start</div>
         </div>
@@ -808,10 +875,10 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
             Total Tasks
           </div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(currentReport.tasks || []).length}
+            {(tasksForSelectedDate || []).length}
           </div>
           <div className="text-purple-700 text-xs dark:text-purple-300">
-            {(currentReport.tasks || []).filter((t) => t.priority === 'high').length} high priority
+            {(tasksForSelectedDate || []).filter((t) => t.priority === 'high').length} high priority
           </div>
         </div>
       </div>

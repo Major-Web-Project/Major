@@ -13,11 +13,16 @@ import { useNavigate } from "react-router-dom";
 const groupTasksByDate = (tasks) => {
   const grouped = {};
   tasks.forEach(task => {
-    const date = task.data && task.data.createdAt
-      ? new Date(task.data.createdAt).toISOString().split('T')[0]
-      : (task.createdAt ? new Date(task.createdAt).toISOString().split('T')[0] : 'unknown');
+    let rawDate = task.data?.createdAt || task.createdAt;
+    let date = 'unknown';
+    if (rawDate) {
+      const d = new Date(rawDate);
+      if (!isNaN(d.getTime())) {
+        date = d.toISOString().split('T')[0];
+      }
+    }
     if (!grouped[date]) grouped[date] = [];
-    grouped[date].push({ ...task.data, id: task._id, createdAt: task.data?.createdAt || task.createdAt });
+    grouped[date].push({ ...task.data, id: task._id, createdAt: rawDate });
   });
   return Object.entries(grouped).map(([date, tasks]) => ({ date, tasks }));
 };
@@ -28,8 +33,25 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
   const [dashboard, setDashboard] = useState(null);
   const [user, setUser] = useState(null);
   const [dailyReport, setDailyReport] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
   const [weeklyActivity, setWeeklyActivity] = useState(null);
+  const [statusHistory, setStatusHistory] = useState([]);
+  const [statusHistoryLoading, setStatusHistoryLoading] = useState(true);
   const navigate = useNavigate();
+
+  // Define fetchStatusHistory here so it can access the state setters
+  const fetchStatusHistory = async () => {
+    try {
+      setStatusHistoryLoading(true);
+      const res = await fetch('/api/dashboard/status-history', { credentials: 'include' });
+      const data = await res.json();
+      setStatusHistory(data.history || []);
+    } catch (err) {
+      setStatusHistory([]);
+    } finally {
+      setStatusHistoryLoading(false);
+    }
+  };
 
   const fetchWeeklyActivity = async () => {
     const weeklyRes = await apiService.getWeeklyActivity();
@@ -38,7 +60,9 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
 
   const fetchAndGroupTasks = async () => {
     const tasksRes = await apiService.getTasks();
-    const grouped = groupTasksByDate(tasksRes.data.tasks || []);
+    const tasks = tasksRes.data.tasks || [];
+    setAllTasks(tasks);
+    const grouped = groupTasksByDate(tasks);
     setDailyReport(grouped);
   };
 
@@ -93,6 +117,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
     };
 
     fetchDashboardData();
+    fetchStatusHistory();
   }, [userProfile, aiDashboardData, aiTasksData]);
 
   const handleStartAIAssessment = () => {
@@ -120,14 +145,20 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
   const backendAvgCompleted = weeklyActivity?.avgCompleted ?? 0;
   const backendTotalTasks = weeklyActivity?.totalTasks ?? 0;
   const backendCompletedTasks = weeklyActivity?.completedTasks ?? 0;
-  const statusHistory = dashboard?.statusHistory || [];
   const statistics = dashboard?.statistics || { assignments: 0, selfStudy: 0, lectures: 0 };
   const totalTasks = dashboard?.totalTasks ?? 0;
   const completedTasks = dashboard?.completedTasks ?? 0;
   const pendingTasks = dashboard?.pendingTasks ?? 0;
 
-  // Debug: log the weekly activity days
-  console.log('WeeklyActivity days:', weeklyActivity?.days || []);
+  // After adding or completing a task, re-fetch status history
+  const handleTaskCreatedOrCompleted = async () => {
+    await fetchAndGroupTasks();
+    await fetchWeeklyActivity();
+    await fetchStatusHistory();
+    // Re-fetch dashboard data for real-time statistics
+    const res = await apiService.getDashboardData();
+    setDashboard(res.data.dashboard);
+  };
 
   if (loading) {
     return (
@@ -376,7 +407,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                     </div>
                   </div>
 
-                  <WeeklyActivityChart data={weeklyActivity?.days || []} />
+                  <WeeklyActivityChart data={weeklyActivity?.days || []} allTasks={allTasks} />
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -423,7 +454,11 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                     Status History
                   </h2>
-                  <StatusHistoryChart data={statusHistory} />
+                  {statusHistoryLoading ? (
+                    <div className="text-center text-sky-600 dark:text-gray-400">Loading status history...</div>
+                  ) : (
+                    <StatusHistoryChart data={statusHistory} />
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -435,11 +470,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                     Your Statistics
                   </h2>
-                  <StatisticsPieChart data={{
-                    assignments: backendTotalTasks,
-                    selfStudy: 0, // You can update this if you track self-study tasks
-                    lectures: 0   // You can update this if you track lecture tasks
-                  }} />
+                  <StatisticsPieChart data={dashboard?.statistics || { assignments: 0, selfStudy: 0, lectures: 0 }} />
                 </CardContent>
               </Card>
             </div>
@@ -455,10 +486,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 <DailyReportTable
                   data={dailyReport}
                   setData={setDailyReport}
-                  onTaskCreated={() => {
-                    fetchAndGroupTasks();
-                    fetchWeeklyActivity();
-                  }}
+                  onTaskCreated={handleTaskCreatedOrCompleted}
                 />
               </CardContent>
             </Card>
