@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { Button } from '../../../components/ui/button';
-import { apiService } from '../../../services/api';
-import DatePicker from 'react-datepicker';
-import 'react-datepicker/dist/react-datepicker.css';
+import React, { useState } from "react";
+import { Button } from "../../../components/ui/button";
+import { apiService } from "../../../services/api";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const reports = data || [];
@@ -12,12 +12,12 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const [showAddTask, setShowAddTask] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [newTaskForm, setNewTaskForm] = useState({
-    name: '',
-    status: 'pending',
-    priority: 'medium',
-    notes: '',
-    estimatedTime: '',
-    type: 'assignment',
+    name: "",
+    status: "pending",
+    priority: "medium",
+    notes: "",
+    estimatedTime: "",
+    type: "assignment",
   });
   const [statusHistory, setStatusHistory] = useState([]);
   const [statusHistoryLoading, setStatusHistoryLoading] = useState(true);
@@ -25,8 +25,8 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const selectedDateString = selectedDate.toISOString().slice(0, 10);
 
   // Flatten all tasks and filter by createdAt date
-  const allTasks = (reports.flatMap(r => r.tasks || []));
-  const tasksForSelectedDate = allTasks.filter(task => {
+  const allTasks = reports.flatMap((r) => r.tasks || []);
+  const tasksForSelectedDate = allTasks.filter((task) => {
     if (!task.createdAt) return false;
     const taskDate = new Date(task.createdAt);
     if (isNaN(taskDate.getTime())) return false;
@@ -35,53 +35,53 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'completed':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
-      case 'in-progress':
-        return 'bg-yellow-100/80 text-yellow-700 border-yellow-300 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30';
-      case 'pending':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
+      case "completed":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "in-progress":
+        return "bg-yellow-100/80 text-yellow-700 border-yellow-300 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30";
+      case "pending":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
       default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case 'high':
-        return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'medium':
-        return 'bg-yellow-100/80 text-yellow-700 border-yellow-300 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30';
-      case 'low':
-        return 'bg-green-500/20 text-green-400 border-green-500/30';
+      case "high":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      case "medium":
+        return "bg-yellow-100/80 text-yellow-700 border-yellow-300 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30";
+      case "low":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
       default:
-        return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'completed':
-        return '✅';
-      case 'in-progress':
-        return '🔄';
-      case 'pending':
-        return '⏳';
+      case "completed":
+        return "✅";
+      case "in-progress":
+        return "🔄";
+      case "pending":
+        return "⏳";
       default:
-        return '❓';
+        return "❓";
     }
   };
 
   const getPriorityIcon = (priority) => {
     switch (priority) {
-      case 'high':
-        return '🔴';
-      case 'medium':
-        return '🟡';
-      case 'low':
-        return '🟢';
+      case "high":
+        return "🔴";
+      case "medium":
+        return "🟡";
+      case "low":
+        return "🟢";
       default:
-        return '⚪';
+        return "⚪";
     }
   };
 
@@ -94,7 +94,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
     if (!editingTask) return;
 
     const updatedData = [...reports];
-    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
+    const reportIndex = updatedData.findIndex(
+      (r) => r.date && r.date.slice(0, 10) === selectedDateString
+    );
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === editingTask
     );
@@ -105,8 +107,14 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         ...updatedData[reportIndex].tasks[taskIndex],
         ...editForm,
         updatedAt: now,
-        completionTime: editForm.status === 'completed' ? new Date().toLocaleTimeString() : undefined,
-        type: editForm.type || updatedData[reportIndex].tasks[taskIndex].type || 'assignment',
+        completionTime:
+          editForm.status === "completed"
+            ? new Date().toLocaleTimeString()
+            : undefined,
+        type:
+          editForm.type ||
+          updatedData[reportIndex].tasks[taskIndex].type ||
+          "assignment",
       };
       updatedData[reportIndex].tasks[taskIndex] = updatedTask;
       setData(updatedData);
@@ -114,7 +122,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         await apiService.updateTask(editingTask, updatedTask);
         if (onTaskCreated) onTaskCreated();
       } catch (error) {
-        alert('Failed to update task. Please try again.');
+        alert("Failed to update task. Please try again.");
         console.error(error);
       }
     }
@@ -137,35 +145,40 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
       name: newTaskForm.name,
       status: newTaskForm.status,
       priority: newTaskForm.priority,
-      notes: newTaskForm.notes || '',
+      notes: newTaskForm.notes || "",
       createdAt: now,
       updatedAt: now,
       estimatedTime: newTaskForm.estimatedTime,
-      completionTime: newTaskForm.status === 'completed' ? new Date().toLocaleTimeString() : undefined,
+      completionTime:
+        newTaskForm.status === "completed"
+          ? new Date().toLocaleTimeString()
+          : undefined,
       type: newTaskForm.type,
     };
 
     try {
       await apiService.createTask({ data: newTask });
       if (onTaskCreated) onTaskCreated();
-    setNewTaskForm({
-      name: '',
-      status: 'pending',
-      priority: 'medium',
-      notes: '',
-      estimatedTime: '',
-      type: 'assignment',
-    });
-    setShowAddTask(false);
+      setNewTaskForm({
+        name: "",
+        status: "pending",
+        priority: "medium",
+        notes: "",
+        estimatedTime: "",
+        type: "assignment",
+      });
+      setShowAddTask(false);
     } catch (error) {
-      alert('Failed to create task. Please try again.');
+      alert("Failed to create task. Please try again.");
       console.error(error);
     }
   };
 
   const handleStatusChange = async (taskId, newStatus) => {
     const updatedData = [...reports];
-    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
+    const reportIndex = updatedData.findIndex(
+      (r) => r.date && r.date.slice(0, 10) === selectedDateString
+    );
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
     );
@@ -175,7 +188,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         ...updatedData[reportIndex].tasks[taskIndex],
         status: newStatus,
         completionTime:
-          newStatus === 'completed'
+          newStatus === "completed"
             ? new Date().toLocaleTimeString()
             : undefined,
       };
@@ -186,7 +199,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         await apiService.updateTask(taskId, updatedTask);
         if (onTaskCreated) onTaskCreated();
       } catch (error) {
-        alert('Failed to update task status. Please try again.');
+        alert("Failed to update task status. Please try again.");
         console.error(error);
       }
     }
@@ -194,7 +207,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
 
   const handlePriorityChange = (taskId, newPriority) => {
     const updatedData = [...reports];
-    const reportIndex = updatedData.findIndex(r => r.date && r.date.slice(0, 10) === selectedDateString);
+    const reportIndex = updatedData.findIndex(
+      (r) => r.date && r.date.slice(0, 10) === selectedDateString
+    );
     const taskIndex = updatedData[reportIndex].tasks.findIndex(
       (t) => t.id === taskId
     );
@@ -221,12 +236,12 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
   const fetchStatusHistory = async () => {
     try {
       setStatusHistoryLoading(true);
-      const res = await fetch('/api/dashboard/status-history', { credentials: 'include' });
-      const data = await res.json();
+      const res = await apiService.getStatusHistory();
+      const data = res.data;
       setStatusHistory(data.history || []);
     } catch (err) {
       setStatusHistory([]);
-      console.error('Failed to fetch status history:', err);
+      console.error("Failed to fetch status history:", err);
     } finally {
       setStatusHistoryLoading(false);
     }
@@ -245,7 +260,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
           <div className="flex items-center gap-2">
             <DatePicker
               selected={selectedDate}
-              onChange={date => setSelectedDate(date)}
+              onChange={(date) => setSelectedDate(date)}
               maxDate={new Date()}
               dateFormat="MMM d, yyyy"
               className="px-3 py-2 rounded-lg text-sm font-medium bg-white/10 text-gray-300 focus:outline-none focus:ring-2 focus:ring-cyan-500"
@@ -280,7 +295,12 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
           </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300" htmlFor="add-task-name">Task Name</label>
+              <label
+                className="block text-indigo-700 text-sm mb-2 dark:text-gray-300"
+                htmlFor="add-task-name"
+              >
+                Task Name
+              </label>
               <input
                 id="add-task-name"
                 type="text"
@@ -294,7 +314,12 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
               />
             </div>
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300" htmlFor="add-task-estimated-time">Estimated Time</label>
+              <label
+                className="block text-indigo-700 text-sm mb-2 dark:text-gray-300"
+                htmlFor="add-task-estimated-time"
+              >
+                Estimated Time
+              </label>
               <input
                 id="add-task-estimated-time"
                 type="text"
@@ -327,7 +352,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
               </select>
             </div>
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">Status</label>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">
+                Status
+              </label>
               <select
                 value={newTaskForm.status}
                 onChange={(e) =>
@@ -341,10 +368,14 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
               </select>
             </div>
             <div>
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">Type</label>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">
+                Type
+              </label>
               <select
                 value={newTaskForm.type}
-                onChange={e => setNewTaskForm({ ...newTaskForm, type: e.target.value })}
+                onChange={(e) =>
+                  setNewTaskForm({ ...newTaskForm, type: e.target.value })
+                }
                 className="w-full p-3 bg-white/10 border border-white/20 rounded-lg text-black"
               >
                 <option value="assignment">📕 Assignment</option>
@@ -353,7 +384,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
               </select>
             </div>
             <div className="md:col-span-2">
-              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">Notes</label>
+              <label className="block text-indigo-700 text-sm mb-2 dark:text-gray-300">
+                Notes
+              </label>
               <textarea
                 value={newTaskForm.notes}
                 onChange={(e) =>
@@ -387,86 +420,95 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         {/* Desktop Table Header - Hidden on mobile */}
         <div className="hidden lg:grid grid-cols-12 gap-4 p-4 bg-white/5 rounded-xl border border-white/10">
           <div className="col-span-4 text-indigo-700 font-semibold text-sm dark:text-white">
-                Task Name
+            Task Name
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-                Status
+            Status
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-                Priority
+            Priority
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-                Time
+            Time
           </div>
           <div className="col-span-2 text-indigo-700 font-semibold text-sm dark:text-white">
-                Actions
+            Actions
           </div>
-                      </div>
+        </div>
 
         {/* Task Rows */}
         {(tasksForSelectedDate || []).map((task, index) => (
           <div key={task.id} className="space-y-2">
             {/* Desktop Layout */}
             <div className="hidden lg:grid grid-cols-12 gap-4 p-4 bg-white/10 rounded-xl border border-white/20 hover:bg-white/15 transition-all duration-300">
-                    {/* Task Name */}
+              {/* Task Name */}
               <div className="col-span-4 flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                   {index + 1}
                 </div>
-                      <div>
-                        {editingTask === task.id ? (
-                          <>
-                            <label htmlFor={`edit-task-name-${task.id}`} className="sr-only">Task Name</label>
-                          <input
-                              id={`edit-task-name-${task.id}`}
-                            type="text"
-                      value={editForm.name || ''}
-                            onChange={(e) =>
-                              setEditForm({ ...editForm, name: e.target.value })
-                            }
-                      className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
-                              autoComplete="off"
-                          />
-                          </>
-                        ) : (
+                <div>
+                  {editingTask === task.id ? (
                     <>
-                      <div className="text-indigo-700 font-medium dark:text-white">{task.name}</div>
-                      <div className="text-sky-700 text-xs mt-1 dark:text-white">ID: {task.id}</div>
+                      <label
+                        htmlFor={`edit-task-name-${task.id}`}
+                        className="sr-only"
+                      >
+                        Task Name
+                      </label>
+                      <input
+                        id={`edit-task-name-${task.id}`}
+                        type="text"
+                        value={editForm.name || ""}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, name: e.target.value })
+                        }
+                        className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                        autoComplete="off"
+                      />
                     </>
-                        )}
+                  ) : (
+                    <>
+                      <div className="text-indigo-700 font-medium dark:text-white">
+                        {task.name}
                       </div>
+                      <div className="text-sky-700 text-xs mt-1 dark:text-white">
+                        ID: {task.id}
                       </div>
+                    </>
+                  )}
+                </div>
+              </div>
 
-                    {/* Status */}
+              {/* Status */}
               <div className="col-span-2 flex items-center">
-                      {editingTask === task.id ? (
-                        <select
+                {editingTask === task.id ? (
+                  <select
                     value={editForm.status || task.status}
-                          onChange={(e) =>
+                    onChange={(e) =>
                       setEditForm({ ...editForm, status: e.target.value })
-                          }
+                    }
                     className="bg-white/10 border border-white/20 rounded px-2 py-1 text-black text-xs"
-                        >
+                  >
                     <option value="pending">⏳ Pending</option>
                     <option value="in-progress">🔄 In Progress</option>
                     <option value="completed">✅ Completed</option>
-                        </select>
-                      ) : (
+                  </select>
+                ) : (
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(
-                            task.status
-                          )}`}
-                        >
+                        task.status
+                      )}`}
+                    >
                       <span>{getStatusIcon(task.status)}</span>
-                      {task.status.replace('-', ' ')}
+                      {task.status.replace("-", " ")}
                     </span>
                     {/* Quick Status Change Buttons */}
                     <div className="flex gap-1">
-                      {task.status !== 'completed' && (
+                      {task.status !== "completed" && (
                         <button
                           onClick={() =>
-                            handleStatusChange(task.id, 'completed')
+                            handleStatusChange(task.id, "completed")
                           }
                           className="w-6 h-6 bg-green-500/20 hover:bg-green-500/40 rounded text-green-400 text-xs transition-all duration-300"
                           title="Mark as completed"
@@ -474,60 +516,61 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                           ✓
                         </button>
                       )}
-                      {task.status !== 'in-progress' && task.status !== 'completed' && (
-                        <button
-                          onClick={() =>
-                            handleStatusChange(task.id, 'in-progress')
-                          }
-                          className="w-6 h-6 bg-yellow-500/20 hover:bg-yellow-500/40 rounded text-yellow-400 text-xs transition-all duration-300"
-                          title="Mark as in progress"
-                        >
-                          ⟳
-                        </button>
-                      )}
+                      {task.status !== "in-progress" &&
+                        task.status !== "completed" && (
+                          <button
+                            onClick={() =>
+                              handleStatusChange(task.id, "in-progress")
+                            }
+                            className="w-6 h-6 bg-yellow-500/20 hover:bg-yellow-500/40 rounded text-yellow-400 text-xs transition-all duration-300"
+                            title="Mark as in progress"
+                          >
+                            ⟳
+                          </button>
+                        )}
                     </div>
                   </div>
                 )}
               </div>
 
-                    {/* Priority */}
+              {/* Priority */}
               <div className="col-span-2 flex items-center">
-                      {editingTask === task.id ? (
-                        <select
+                {editingTask === task.id ? (
+                  <select
                     value={editForm.priority || task.priority}
-                          onChange={(e) =>
+                    onChange={(e) =>
                       setEditForm({ ...editForm, priority: e.target.value })
-                          }
+                    }
                     className="bg-white/10 border border-white/20 rounded px-2 py-1 text-black text-xs"
-                        >
+                  >
                     <option value="Low">🟢 Low</option>
                     <option value="Medium">🟡 Medium</option>
                     <option value="High">🔴 High</option>
-                        </select>
-                      ) : (
+                  </select>
+                ) : (
                   <div className="flex items-center gap-2">
                     <span
                       className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium border ${getPriorityColor(
-                            task.priority
-                          )}`}
-                        >
+                        task.priority
+                      )}`}
+                    >
                       <span>{getPriorityIcon(task.priority)}</span>
-                          {task.priority}
+                      {task.priority}
                     </span>
                     {/* Quick Priority Change */}
                     <div className="flex gap-1">
-                      {task.priority !== 'high' && (
+                      {task.priority !== "high" && (
                         <button
-                          onClick={() => handlePriorityChange(task.id, 'high')}
+                          onClick={() => handlePriorityChange(task.id, "high")}
                           className="w-6 h-6 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-xs transition-all duration-300"
                           title="Set high priority"
                         >
                           ↑
                         </button>
                       )}
-                      {task.priority !== 'low' && (
+                      {task.priority !== "low" && (
                         <button
-                          onClick={() => handlePriorityChange(task.id, 'low')}
+                          onClick={() => handlePriorityChange(task.id, "low")}
                           className="w-6 h-6 bg-green-500/20 hover:bg-green-500/40 rounded text-green-400 text-xs transition-all duration-300"
                           title="Set low priority"
                         >
@@ -542,47 +585,47 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
               {/* Completion Time */}
               <div className="col-span-2 flex items-center">
                 <span className="text-indigo-700 text-sm dark:text-white">
-                  {task.completionTime || task.estimatedTime || 'N/A'}
+                  {task.completionTime || task.estimatedTime || "N/A"}
                 </span>
               </div>
 
-                    {/* Actions */}
+              {/* Actions */}
               <div className="col-span-2 flex items-center justify-end gap-6">
-                      {editingTask === task.id ? (
+                {editingTask === task.id ? (
                   <>
-                          <Button
-                            onClick={handleSaveEdit}
+                    <Button
+                      onClick={handleSaveEdit}
                       className="px-3 py-1 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white text-xs rounded-lg transition-all duration-300"
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            onClick={handleCancelEdit}
+                    >
+                      Save
+                    </Button>
+                    <Button
+                      onClick={handleCancelEdit}
                       className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-xs rounded-lg transition-all duration-300"
-                          >
-                            Cancel
-                          </Button>
+                    >
+                      Cancel
+                    </Button>
                   </>
-                      ) : (
+                ) : (
                   <>
-                          <Button
+                    <Button
                       onClick={() =>
                         setExpandedTask(
                           expandedTask === task.id ? null : task.id
                         )
                       }
                       className="px-3 py-1 bg-white/10 hover:bg-white/20 text-indigo-700 dark:text-white text-xs rounded-lg transition-all duration-300"
-                          >
-                            {expandedTask === task.id ? 'Hide' : 'Details'}
-                          </Button>
-                          {task.status !== 'completed' && (
-                            <Button
-                              onClick={() => handleEditTask(task)}
-                              className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
-                            >
-                              Edit
-                            </Button>
-                          )}
+                    >
+                      {expandedTask === task.id ? "Hide" : "Details"}
+                    </Button>
+                    {task.status !== "completed" && (
+                      <Button
+                        onClick={() => handleEditTask(task)}
+                        className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
+                      >
+                        Edit
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -599,29 +642,36 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                   <div className="min-w-0 flex-1">
                     {editingTask === task.id ? (
                       <>
-                        <label htmlFor={`edit-task-name-${task.id}`} className="sr-only">Task Name</label>
-                      <input
+                        <label
+                          htmlFor={`edit-task-name-${task.id}`}
+                          className="sr-only"
+                        >
+                          Task Name
+                        </label>
+                        <input
                           id={`edit-task-name-${task.id}`}
-                        type="text"
-                        value={editForm.name || ''}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, name: e.target.value })
-                        }
-                        className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
+                          type="text"
+                          value={editForm.name || ""}
+                          onChange={(e) =>
+                            setEditForm({ ...editForm, name: e.target.value })
+                          }
+                          className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm"
                           autoComplete="off"
-                      />
+                        />
                       </>
                     ) : (
                       <>
                         <div className="text-indigo-700 font-medium dark:text-white truncate">
                           {task.name}
                         </div>
-                        <div className="text-sky-700 text-xs dark:text-white">ID: {task.id}</div>
+                        <div className="text-sky-700 text-xs dark:text-white">
+                          ID: {task.id}
+                        </div>
                       </>
                     )}
                   </div>
-                          </div>
-                          </div>
+                </div>
+              </div>
 
               {/* Status and Priority Row */}
               <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -659,7 +709,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                     >
                       <span>{getStatusIcon(task.status)}</span>
                       <span className="hidden sm:inline dark:text-white">
-                        {task.status.replace('-', ' ')}
+                        {task.status.replace("-", " ")}
                       </span>
                     </span>
                     <span
@@ -668,55 +718,72 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                       )}`}
                     >
                       <span>{getPriorityIcon(task.priority)}</span>
-                      <span className="hidden sm:inline dark:text-white">{task.priority}</span>
+                      <span className="hidden sm:inline dark:text-white">
+                        {task.priority}
+                      </span>
                     </span>
                     <span className="text-indigo-700 text-xs dark:text-white">
-                      {task.completionTime || task.estimatedTime || 'N/A'}
+                      {task.completionTime || task.estimatedTime || "N/A"}
                     </span>
                   </>
                 )}
-                            </div>
+              </div>
 
               {/* Quick Action Buttons */}
               {editingTask !== task.id && (
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {task.status !== 'completed' && (
+                  {task.status !== "completed" && (
                     <button
-                      onClick={() => handleStatusChange(task.id, 'completed')}
+                      onClick={() => handleStatusChange(task.id, "completed")}
                       className="px-2 py-1 bg-green-500/20 hover:bg-green-500/40 rounded text-green-400 text-xs transition-all duration-300 flex items-center gap-1"
                       title="Mark as completed"
                     >
-                      ✓ <span className="hidden sm:inline dark:text-white">Complete</span>
+                      ✓{" "}
+                      <span className="hidden sm:inline dark:text-white">
+                        Complete
+                      </span>
                     </button>
                   )}
-                  {task.status !== 'in-progress' && task.status !== 'completed' && (
+                  {task.status !== "in-progress" &&
+                    task.status !== "completed" && (
+                      <button
+                        onClick={() =>
+                          handleStatusChange(task.id, "in-progress")
+                        }
+                        className="px-2 py-1 bg-yellow-500/20 hover:bg-yellow-500/40 rounded text-yellow-400 text-xs transition-all duration-300 flex items-center gap-1"
+                        title="Mark as in progress"
+                      >
+                        ⟳{" "}
+                        <span className="hidden sm:inline dark:text-white">
+                          Progress
+                        </span>
+                      </button>
+                    )}
+                  {task.priority !== "high" && (
                     <button
-                      onClick={() => handleStatusChange(task.id, 'in-progress')}
-                      className="px-2 py-1 bg-yellow-500/20 hover:bg-yellow-500/40 rounded text-yellow-400 text-xs transition-all duration-300 flex items-center gap-1"
-                      title="Mark as in progress"
-                    >
-                      ⟳ <span className="hidden sm:inline dark:text-white">Progress</span>
-                    </button>
-                  )}
-                  {task.priority !== 'high' && (
-                    <button
-                      onClick={() => handlePriorityChange(task.id, 'high')}
+                      onClick={() => handlePriorityChange(task.id, "high")}
                       className="px-2 py-1 bg-red-500/20 hover:bg-red-500/40 rounded text-red-400 text-xs transition-all duration-300 flex items-center gap-1"
                       title="Set high priority"
                     >
-                      ↑ <span className="hidden sm:inline dark:text-white">High</span>
+                      ↑{" "}
+                      <span className="hidden sm:inline dark:text-white">
+                        High
+                      </span>
                     </button>
                   )}
-                  {task.priority !== 'low' && (
+                  {task.priority !== "low" && (
                     <button
-                      onClick={() => handlePriorityChange(task.id, 'low')}
+                      onClick={() => handlePriorityChange(task.id, "low")}
                       className="px-2 py-1 bg-green-500/20 hover:bg-green-500/40 rounded text-green-400 text-xs transition-all duration-300 flex items-center gap-1"
                       title="Set low priority"
                     >
-                      ↓ <span className="hidden sm:inline dark:text-white">Low</span>
+                      ↓{" "}
+                      <span className="hidden sm:inline dark:text-white">
+                        Low
+                      </span>
                     </button>
-                          )}
-                        </div>
+                  )}
+                </div>
               )}
 
               {/* Action Buttons */}
@@ -746,9 +813,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                       }
                       className="px-3 py-1 bg-white/10 hover:bg-white/20 text-indigo-700 dark:text-white text-xs rounded-lg transition-all duration-300"
                     >
-                      {expandedTask === task.id ? 'Hide' : 'Details'}
+                      {expandedTask === task.id ? "Hide" : "Details"}
                     </Button>
-                    {task.status !== 'completed' && (
+                    {task.status !== "completed" && (
                       <Button
                         onClick={() => handleEditTask(task)}
                         className="px-3 py-1 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-400 hover:to-cyan-400 text-white text-xs rounded-lg transition-all duration-300"
@@ -769,7 +836,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                     <h4 className="text-white font-semibold mb-2">📝 Notes:</h4>
                     {editingTask === task.id ? (
                       <textarea
-                        value={editForm.notes || ''}
+                        value={editForm.notes || ""}
                         onChange={(e) =>
                           setEditForm({ ...editForm, notes: e.target.value })
                         }
@@ -777,7 +844,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                       />
                     ) : (
                       <p className="text-sky-700 text-sm leading-relaxed bg-black/20 p-3 rounded-lg dark:text-white">
-                        {task.notes || 'No notes available'}
+                        {task.notes || "No notes available"}
                       </p>
                     )}
                   </div>
@@ -804,7 +871,7 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                         Duration
                       </div>
                       <div className="text-indigo-700 text-sm dark:text-white">
-                        {task.completionTime || task.estimatedTime || 'Not set'}
+                        {task.completionTime || task.estimatedTime || "Not set"}
                       </div>
                     </div>
                     <div className="bg-white/10 p-3 rounded-lg">
@@ -812,12 +879,16 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
                         Progress
                       </div>
                       <div className="text-indigo-700 text-sm dark:text-white">
-                        {task.status === 'completed' ? '100%' : task.status === 'in-progress' ? '50%' : '0%'}
+                        {task.status === "completed"
+                          ? "100%"
+                          : task.status === "in-progress"
+                          ? "50%"
+                          : "0%"}
                       </div>
                     </div>
                   </div>
-                          </div>
-                        </div>
+                </div>
+              </div>
             )}
           </div>
         ))}
@@ -826,7 +897,9 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         {(tasksForSelectedDate || []).length === 0 && (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">📋</div>
-            <div className="text-sky-600 text-lg dark:text-gray-400">No tasks for this date</div>
+            <div className="text-sky-600 text-lg dark:text-gray-400">
+              No tasks for this date
+            </div>
             {isToday() && (
               <Button
                 onClick={() => setShowAddTask(true)}
@@ -844,12 +917,17 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
         <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-3 sm:p-4 rounded-xl border border-green-500/30">
           <div className="text-green-400 font-semibold text-sm">Completed</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(tasksForSelectedDate || []).filter((t) => t.status === 'completed').length}
+            {
+              (tasksForSelectedDate || []).filter(
+                (t) => t.status === "completed"
+              ).length
+            }
           </div>
           <div className="text-mint-700 text-xs dark:text-green-300">
             {Math.round(
-              ((tasksForSelectedDate || []).filter((t) => t.status === 'completed')
-                .length /
+              ((tasksForSelectedDate || []).filter(
+                (t) => t.status === "completed"
+              ).length /
                 Math.max((tasksForSelectedDate || []).length, 1)) *
                 100
             )}
@@ -857,18 +935,31 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
           </div>
         </div>
         <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 p-3 sm:p-4 rounded-xl border border-yellow-500/30">
-          <div className="text-yellow-700 font-semibold text-sm dark:text-yellow-400">In Progress</div>
-          <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(tasksForSelectedDate || []).filter((t) => t.status === 'in-progress').length}
+          <div className="text-yellow-700 font-semibold text-sm dark:text-yellow-400">
+            In Progress
           </div>
-          <div className="text-yellow-700 text-xs dark:text-yellow-300">Active tasks</div>
+          <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
+            {
+              (tasksForSelectedDate || []).filter(
+                (t) => t.status === "in-progress"
+              ).length
+            }
+          </div>
+          <div className="text-yellow-700 text-xs dark:text-yellow-300">
+            Active tasks
+          </div>
         </div>
         <div className="bg-gradient-to-r from-red-500/20 to-pink-500/20 p-3 sm:p-4 rounded-xl border border-red-500/30">
           <div className="text-red-400 font-semibold text-sm">Pending</div>
           <div className="text-indigo-700 text-xl sm:text-2xl font-bold dark:text-white">
-            {(tasksForSelectedDate || []).filter((t) => t.status === 'pending').length}
+            {
+              (tasksForSelectedDate || []).filter((t) => t.status === "pending")
+                .length
+            }
           </div>
-          <div className="text-pink-700 text-xs dark:text-red-300">Waiting to start</div>
+          <div className="text-pink-700 text-xs dark:text-red-300">
+            Waiting to start
+          </div>
         </div>
         <div className="bg-gradient-to-r from-purple-500/20 to-blue-500/20 p-3 sm:p-4 rounded-xl border border-purple-500/30">
           <div className="text-purple-400 font-semibold text-sm">
@@ -878,7 +969,11 @@ export const DailyReportTable = ({ data, setData, onTaskCreated }) => {
             {(tasksForSelectedDate || []).length}
           </div>
           <div className="text-purple-700 text-xs dark:text-purple-300">
-            {(tasksForSelectedDate || []).filter((t) => t.priority === 'high').length} high priority
+            {
+              (tasksForSelectedDate || []).filter((t) => t.priority === "high")
+                .length
+            }{" "}
+            high priority
           </div>
         </div>
       </div>

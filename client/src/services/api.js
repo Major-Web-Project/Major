@@ -1,4 +1,5 @@
 import axios from "axios";
+axios.defaults.withCredentials = true;
 
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "http://localhost:5000/api";
@@ -219,6 +220,16 @@ export const apiService = {
       return await api.get(`/tasks/by-date?date=${date}`);
     } catch (error) {
       console.warn("Tasks by date fetch failed");
+      return Promise.reject(error);
+    }
+  },
+
+  // Get status history for dashboard
+  getStatusHistory: async () => {
+    try {
+      return await api.get("/dashboard/status-history");
+    } catch (error) {
+      console.warn("Status history fetch failed");
       return Promise.reject(error);
     }
   },

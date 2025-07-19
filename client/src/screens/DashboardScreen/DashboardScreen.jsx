@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { WeeklyActivityChart } from './components/WeeklyActivityChart';
-import { StatusHistoryChart } from './components/StatusHistoryChart';
-import { StatisticsPieChart } from './components/StatisticsPieChart';
-import { DailyReportTable } from './components/DailyReportTable';
-import { apiService } from '../../services/api';
-import { aiAssistant } from '../../services/aiLearningService';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "../../components/ui/card";
+import { Button } from "../../components/ui/button";
+import { WeeklyActivityChart } from "./components/WeeklyActivityChart";
+import { StatusHistoryChart } from "./components/StatusHistoryChart";
+import { StatisticsPieChart } from "./components/StatisticsPieChart";
+import { DailyReportTable } from "./components/DailyReportTable";
+import { apiService } from "../../services/api";
+import { aiAssistant } from "../../services/aiLearningService";
 import { useNavigate } from "react-router-dom";
 
 // Helper to group tasks by date
 const groupTasksByDate = (tasks) => {
   const grouped = {};
-  tasks.forEach(task => {
+  tasks.forEach((task) => {
     let rawDate = task.data?.createdAt || task.createdAt;
-    let date = 'unknown';
+    let date = "unknown";
     if (rawDate) {
       const d = new Date(rawDate);
       if (!isNaN(d.getTime())) {
-        date = d.toISOString().split('T')[0];
+        date = d.toISOString().split("T")[0];
       }
     }
     if (!grouped[date]) grouped[date] = [];
@@ -27,7 +27,12 @@ const groupTasksByDate = (tasks) => {
   return Object.entries(grouped).map(([date, tasks]) => ({ date, tasks }));
 };
 
-export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDashboardData, aiTasksData }) => {
+export const DashboardScreen = ({
+  userProfile,
+  learningData,
+  dashboardData: aiDashboardData,
+  aiTasksData,
+}) => {
   const [loading, setLoading] = useState(true);
   const [aiInsights, setAiInsights] = useState(null);
   const [dashboard, setDashboard] = useState(null);
@@ -43,8 +48,8 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
   const fetchStatusHistory = async () => {
     try {
       setStatusHistoryLoading(true);
-      const res = await fetch('/api/dashboard/status-history', { credentials: 'include' });
-      const data = await res.json();
+      const res = await apiService.getStatusHistory();
+      const data = res.data;
       setStatusHistory(data.history || []);
     } catch (err) {
       setStatusHistory([]);
@@ -68,8 +73,8 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
 
   useEffect(() => {
     // Scroll to top when component mounts
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     const fetchDashboardData = async () => {
       try {
         const res = await apiService.getDashboardData();
@@ -91,18 +96,20 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
           setDashboard({
             ...res.data.dashboard,
             ...aiDashboardData,
-            dailyReport: [{
-              date: new Date().toISOString().split('T')[0],
-              tasks: aiTasksData.map(task => ({
-                id: task.id,
-                name: task.title,
-                status: task.status || 'pending',
-                priority: task.priority,
-                notes: task.description,
-                estimatedTime: `${task.estimatedTime} hours`,
-                createdAt: new Date().toISOString()
-              }))
-            }]
+            dailyReport: [
+              {
+                date: new Date().toISOString().split("T")[0],
+                tasks: aiTasksData.map((task) => ({
+                  id: task.id,
+                  name: task.title,
+                  status: task.status || "pending",
+                  priority: task.priority,
+                  notes: task.description,
+                  estimatedTime: `${task.estimatedTime} hours`,
+                  createdAt: new Date().toISOString(),
+                })),
+              },
+            ],
           });
         }
 
@@ -111,7 +118,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
           setLoading(false);
         }, 1000);
       } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
+        console.error("Failed to fetch dashboard data:", error);
         setLoading(false);
       }
     };
@@ -126,26 +133,40 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
 
   const handleViewAIDashboard = () => {
     if (learningData) {
-      const learningDashboardEvent = new CustomEvent('navigateToLearningDashboard');
+      const learningDashboardEvent = new CustomEvent(
+        "navigateToLearningDashboard"
+      );
       window.dispatchEvent(learningDashboardEvent);
     }
   };
 
   // Calculate total and completed tasks for the week
-  const totalTasksThisWeek = (weeklyActivity?.days || []).reduce((sum, day) => sum + (day.totalTasks || 0), 0);
-  const completedTasksThisWeek = (weeklyActivity?.days || []).reduce((sum, day) => sum + (day.completedTasks || 0), 0);
+  const totalTasksThisWeek = (weeklyActivity?.days || []).reduce(
+    (sum, day) => sum + (day.totalTasks || 0),
+    0
+  );
+  const completedTasksThisWeek = (weeklyActivity?.days || []).reduce(
+    (sum, day) => sum + (day.completedTasks || 0),
+    0
+  );
 
   // Only show days with tasks in the chart
-  const weeklyActivityDataWithTasks = (weeklyActivity?.days || []).filter(day => day.hasTasks);
+  const weeklyActivityDataWithTasks = (weeklyActivity?.days || []).filter(
+    (day) => day.hasTasks
+  );
 
   // Defensive defaults for dashboard data
   const backendStreak = weeklyActivity?.streak ?? 0;
-  const backendBestDay = weeklyActivity?.bestDay ?? 'N/A';
+  const backendBestDay = weeklyActivity?.bestDay ?? "N/A";
   const backendAvgGoal = weeklyActivity?.avgGoal ?? 100;
   const backendAvgCompleted = weeklyActivity?.avgCompleted ?? 0;
   const backendTotalTasks = weeklyActivity?.totalTasks ?? 0;
   const backendCompletedTasks = weeklyActivity?.completedTasks ?? 0;
-  const statistics = dashboard?.statistics || { assignments: 0, selfStudy: 0, lectures: 0 };
+  const statistics = dashboard?.statistics || {
+    assignments: 0,
+    selfStudy: 0,
+    lectures: 0,
+  };
   const totalTasks = dashboard?.totalTasks ?? 0;
   const completedTasks = dashboard?.completedTasks ?? 0;
   const pendingTasks = dashboard?.pendingTasks ?? 0;
@@ -170,7 +191,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
             loop
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
-            style={{ filter: 'brightness(0.3) contrast(1.2)' }}
+            style={{ filter: "brightness(0.3) contrast(1.2)" }}
           >
             <source
               src="https://videos.pexels.com/video-files/3129671/3129671-uhd_3840_2160_30fps.mp4"
@@ -202,7 +223,7 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
           loop
           playsInline
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ filter: 'brightness(0.3) contrast(1.2)' }}
+          style={{ filter: "brightness(0.3) contrast(1.2)" }}
         >
           <source
             src="https://videos.pexels.com/video-files/3129671/3129671-uhd_3840_2160_30fps.mp4"
@@ -241,7 +262,8 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 </p>
                 {learningData && (
                   <p className="text-cyan-400 text-sm mt-1">
-                    🤖 AI Learning Path: {learningData.goalData?.learningPath || 'Active'}
+                    🤖 AI Learning Path:{" "}
+                    {learningData.goalData?.learningPath || "Active"}
                   </p>
                 )}
               </div>
@@ -254,9 +276,12 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <div className="w-16 h-16 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl">🤖</span>
                   </div>
-                  <h3 className="text-white font-bold text-2xl mb-4">Unlock AI-Powered Learning</h3>
+                  <h3 className="text-white font-bold text-2xl mb-4">
+                    Unlock AI-Powered Learning
+                  </h3>
                   <p className="text-gray-300 text-lg mb-6">
-                    Take our AI assessment to get personalized learning paths, daily tasks, and progress tracking
+                    Take our AI assessment to get personalized learning paths,
+                    daily tasks, and progress tracking
                   </p>
                   <Button
                     onClick={handleStartAIAssessment}
@@ -275,9 +300,12 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-3xl">🎯</span>
                   </div>
-                  <h3 className="text-white font-bold text-2xl mb-4">AI Learning Dashboard Active</h3>
+                  <h3 className="text-white font-bold text-2xl mb-4">
+                    AI Learning Dashboard Active
+                  </h3>
                   <p className="text-gray-300 text-lg mb-6">
-                    Your personalized AI learning dashboard is ready with daily tasks and progress tracking
+                    Your personalized AI learning dashboard is ready with daily
+                    tasks and progress tracking
                   </p>
                   <Button
                     onClick={handleViewAIDashboard}
@@ -293,10 +321,12 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
                 <div className="text-sky-700 font-semibold text-sm dark:text-cyan-400">
-                  {learningData ? 'AI Tasks Generated' : 'Courses Enrolled'}
+                  {learningData ? "AI Tasks Generated" : "Courses Enrolled"}
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {learningData ? (aiTasksData?.length || 0) : user?.coursesEnrolled}
+                  {learningData
+                    ? aiTasksData?.length || 0
+                    : user?.coursesEnrolled}
                 </div>
               </div>
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
@@ -312,18 +342,23 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   Learning Hours
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {aiInsights?.timeSpentTotal?.toFixed(1) || user?.totalHoursLearned}h
+                  {aiInsights?.timeSpentTotal?.toFixed(1) ||
+                    user?.totalHoursLearned}
+                  h
                 </div>
               </div>
               <div className="bg-mint-100 rounded-xl p-4 border border-mint-200 dark:bg-white/10 dark:border-white/20">
                 <div className="text-pink-700 font-semibold text-sm dark:text-orange-400">
-                  {learningData ? 'AI Efficiency' : 'Skills Gained'}
+                  {learningData ? "AI Efficiency" : "Skills Gained"}
                 </div>
                 <div className="text-indigo-700 text-2xl font-bold dark:text-white">
-                  {learningData 
-                    ? `${Math.round((aiInsights?.averageEfficiency || 0) * 100)}%`
-                    : (user?.skillsGained ? user.skillsGained.length : 0)
-                  }
+                  {learningData
+                    ? `${Math.round(
+                        (aiInsights?.averageEfficiency || 0) * 100
+                      )}%`
+                    : user?.skillsGained
+                    ? user.skillsGained.length
+                    : 0}
                 </div>
               </div>
             </div>
@@ -339,25 +374,37 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 p-6 rounded-xl border border-blue-400/30">
-                    <div className="text-blue-400 font-semibold text-sm mb-2">AI Efficiency Score</div>
+                    <div className="text-blue-400 font-semibold text-sm mb-2">
+                      AI Efficiency Score
+                    </div>
                     <div className="text-indigo-700 text-3xl font-bold dark:text-white">
                       {Math.round((aiInsights.averageEfficiency || 0) * 100)}%
                     </div>
-                    <div className="text-blue-300 text-xs">Based on task completion</div>
+                    <div className="text-blue-300 text-xs">
+                      Based on task completion
+                    </div>
                   </div>
                   <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-6 rounded-xl border border-green-400/30">
-                    <div className="text-green-400 font-semibold text-sm mb-2">AI Tasks Completed</div>
+                    <div className="text-green-400 font-semibold text-sm mb-2">
+                      AI Tasks Completed
+                    </div>
                     <div className="text-indigo-700 text-3xl font-bold dark:text-white">
                       {aiInsights.totalTasksCompleted || 0}
                     </div>
-                    <div className="text-green-300 text-xs">AI-generated assignments</div>
+                    <div className="text-green-300 text-xs">
+                      AI-generated assignments
+                    </div>
                   </div>
                   <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-6 rounded-xl border border-purple-400/30">
-                    <div className="text-purple-400 font-semibold text-sm mb-2">Learning Time</div>
+                    <div className="text-purple-400 font-semibold text-sm mb-2">
+                      Learning Time
+                    </div>
                     <div className="text-indigo-700 text-3xl font-bold dark:text-white">
                       {(aiInsights.timeSpentTotal || 0).toFixed(1)}h
                     </div>
-                    <div className="text-purple-300 text-xs">AI-tracked focus time</div>
+                    <div className="text-purple-300 text-xs">
+                      AI-tracked focus time
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -389,10 +436,12 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                         <div className="text-indigo-700 text-2xl font-bold dark:text-white">
                           {weeklyActivityDataWithTasks.length
                             ? Math.round(
-                                weeklyActivityDataWithTasks.reduce((acc, day) => acc + day.completed, 0) / weeklyActivityDataWithTasks.length
+                                weeklyActivityDataWithTasks.reduce(
+                                  (acc, day) => acc + day.completed,
+                                  0
+                                ) / weeklyActivityDataWithTasks.length
                               )
-                            : 0
-                          }
+                            : 0}
                           %
                         </div>
                       </div>
@@ -407,7 +456,10 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                     </div>
                   </div>
 
-                  <WeeklyActivityChart data={weeklyActivity?.days || []} allTasks={allTasks} />
+                  <WeeklyActivityChart
+                    data={weeklyActivity?.days || []}
+                    allTasks={allTasks}
+                  />
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
                     <div className="bg-sky-100/50 rounded-xl p-4 text-center dark:bg-white/10">
@@ -455,7 +507,9 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                     Status History
                   </h2>
                   {statusHistoryLoading ? (
-                    <div className="text-center text-sky-600 dark:text-gray-400">Loading status history...</div>
+                    <div className="text-center text-sky-600 dark:text-gray-400">
+                      Loading status history...
+                    </div>
                   ) : (
                     <StatusHistoryChart data={statusHistory} />
                   )}
@@ -470,7 +524,15 @@ export const DashboardScreen = ({ userProfile, learningData, dashboardData: aiDa
                   <h2 className="text-2xl font-bold text-indigo-700 mb-4 font-poppins dark:text-white">
                     Your Statistics
                   </h2>
-                  <StatisticsPieChart data={dashboard?.statistics || { assignments: 0, selfStudy: 0, lectures: 0 }} />
+                  <StatisticsPieChart
+                    data={
+                      dashboard?.statistics || {
+                        assignments: 0,
+                        selfStudy: 0,
+                        lectures: 0,
+                      }
+                    }
+                  />
                 </CardContent>
               </Card>
             </div>

@@ -4,6 +4,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { NavigationBarSection } from "./screens/FrameScreen/sections/NavigationBarSection/NavigationBarSection";
 import { ThemeProvider } from "./lib/ThemeContext";
+import axios from "axios";
 
 // Import your screen components
 import { AuthScreen } from "./screens/AuthScreen/AuthScreen";
@@ -30,9 +31,9 @@ function App() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const res = await fetch('/api/auth/profile', { credentials: 'include' });
-        if (res.ok) {
-          const data = await res.json();
+        const res = await axios.get("/api/auth/profile");
+        if (res.status === 200) {
+          const data = res.data;
           setUser(data.user);
           setIsAuthenticated(true);
         } else {
@@ -57,7 +58,7 @@ function App() {
   const handleLogout = () => {
     setUser(null);
     setIsAuthenticated(false);
-    navigate('/');
+    navigate("/");
   };
 
   const handleAssessmentComplete = (userProfile, allResponses) => {
@@ -80,33 +81,57 @@ function App() {
   return (
     <ThemeProvider>
       <div className="bg-background text-primary min-h-screen transition-colors duration-500">
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-      />
-        <NavigationBarSection 
-          user={user} 
-          isAuthenticated={isAuthenticated} 
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+        <NavigationBarSection
+          user={user}
+          isAuthenticated={isAuthenticated}
           handleLogout={handleLogout}
           handleLogin={handleLogin}
         />
-      <Routes>
-        <Route path="/" element={<FrameScreen />} />
+        <Routes>
+          <Route path="/" element={<FrameScreen />} />
           <Route path="/auth" element={<AuthScreen onLogin={handleLogin} />} />
-          <Route path="/dashboard" element={isAuthenticated ? <DashboardScreen /> : <Navigate to="/auth" replace />} />
-        <Route path="/about" element={<AboutScreen />} />
-          <Route path="/assessment" element={<AssessmentScreen onComplete={handleAssessmentComplete} />} />
-          <Route path="/goal-setup" element={<GoalSetupScreen userProfile={userProfile} onComplete={handleGoalSetupComplete} />} />
-          <Route path="/roadmap" element={<RoadmapScreen goalData={goalData} roadmap={roadmap} userProfile={userProfile} onStartLearning={handleStartLearning} />} />
-        <Route
-          path="/learning-dashboard"
+          <Route
+            path="/dashboard"
+            element={isAuthenticated ? <DashboardScreen /> : <FrameScreen />}
+          />
+          <Route path="/about" element={<AboutScreen />} />
+          <Route
+            path="/assessment"
+            element={<AssessmentScreen onComplete={handleAssessmentComplete} />}
+          />
+          <Route
+            path="/goal-setup"
+            element={
+              <GoalSetupScreen
+                userProfile={userProfile}
+                onComplete={handleGoalSetupComplete}
+              />
+            }
+          />
+          <Route
+            path="/roadmap"
+            element={
+              <RoadmapScreen
+                goalData={goalData}
+                roadmap={roadmap}
+                userProfile={userProfile}
+                onStartLearning={handleStartLearning}
+              />
+            }
+          />
+          <Route
+            path="/learning-dashboard"
             element={
               goalSet && learningData && roadmap && userProfile ? (
                 <LearningDashboardScreen
@@ -120,8 +145,11 @@ function App() {
               )
             }
           />
-          <Route path="/tasks" element={isAuthenticated ? <TasksScreen /> : <Navigate to="/auth" replace />} />
-      </Routes>
+          <Route
+            path="/tasks"
+            element={isAuthenticated ? <TasksScreen /> : <FrameScreen />}
+          />
+        </Routes>
       </div>
     </ThemeProvider>
   );
