@@ -1,7 +1,8 @@
 import Task from "../models/Task.js";
+import Goal from "../models/Goal.js";
 import WeeklyActivity from "../models/WeeklyActivity.js";
-import { getFileSignedUrl, s3Client, S3_CONFIG } from '../config/aws.js';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getFileSignedUrl, s3Client, S3_CONFIG } from "../config/aws.js";
+import { GetObjectCommand } from "@aws-sdk/client-s3";
 
 function getLast7Days() {
   const days = [];
@@ -15,10 +16,6 @@ function getLast7Days() {
     d.setUTCDate(today.getUTCDate() - i);
     days.push(d);
   }
-  // Debug: print the last day (commented out to prevent server issues)
-  // if (process.env.NODE_ENV !== "production") {
-  //   console.log("Last day (should be today):", days[6].toString());
-  // }
   return days;
 }
 
@@ -26,14 +23,6 @@ function getDayLabel(date) {
   // Use local time for day label
   return ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][date.getDay()];
 }
-
-// Debug: Print generated days and labels (removed to prevent server reload issues)
-// if (process.env.NODE_ENV !== "production") {
-//   const days = getLast7Days();
-//   days.forEach((d) => {
-//     console.log("WeeklyActivity Day:", d.toLocaleString(), getDayLabel(d));
-//   });
-// }
 
 async function calculateAndStoreWeeklyActivity(userId) {
   const days = getLast7Days();
@@ -49,7 +38,7 @@ async function calculateAndStoreWeeklyActivity(userId) {
   const end = nextDay(days[6]);
   const tasks = await Task.find({
     user: userId,
-    createdAt: { $gte: start, $lt: end },
+    scheduledDate: { $gte: start, $lt: end },
   });
 
   let totalTasks = 0,
@@ -64,11 +53,11 @@ async function calculateAndStoreWeeklyActivity(userId) {
     const dayStart = days[i];
     const dayEnd = nextDay(dayStart);
     const dayTasks = tasks.filter(
-      (t) => t.createdAt >= dayStart && t.createdAt < dayEnd
+      (t) => t.scheduledDate >= dayStart && t.scheduledDate < dayEnd
     );
     const dayTotal = dayTasks.length;
     const dayCompleted = dayTasks.filter(
-      (t) => t.data.status === "completed"
+      (t) => t.status === "completed"
     ).length;
     const pct = dayTotal ? (dayCompleted / dayTotal) * 100 : 0;
 
@@ -77,7 +66,7 @@ async function calculateAndStoreWeeklyActivity(userId) {
       date: dayStart.toISOString(),
       goal: 100,
       completed: pct,
-      hasTasks: dayTotal > 0, // for frontend to optionally gray out days with no tasks
+      hasTasks: dayTotal > 0,
       totalTasks: dayTotal,
       completedTasks: dayCompleted,
     });
@@ -91,11 +80,6 @@ async function calculateAndStoreWeeklyActivity(userId) {
       bestDay = getDayLabel(dayStart);
     }
   }
-
-  // Debug log: print the generated dayStats (commented out to prevent server issues)
-  // if (process.env.NODE_ENV !== "production") {
-  //   console.log("WeeklyActivity dayStats:", JSON.stringify(dayStats, null, 2));
-  // }
 
   // Calculate streak (consecutive days with 100% completion, ending with today)
   for (let i = 6; i >= 0; i--) {
@@ -135,23 +119,55 @@ async function calculateAndStoreWeeklyActivity(userId) {
 // Create a new task
 export const createTask = async (req, res) => {
   try {
-    const { data } = req.body;
-    if (!data) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Task data is required" });
+    const {
+      goalId,
+      title,
+      description,
+      type,
+      category,
+      difficulty,
+      priority,
+      estimatedTime,
+      scheduledDate,
+    } = req.body;
+
+    if (!goalId || !title || !description) {
+      return res.status(400).json({
+        success: false,
+        message: "Goal ID, title, and description are required",
+      });
     }
-    // Defensive: Ensure status is set
-    if (!data.status) data.status = "pending";
-    const task = new Task({ user: req.user._id, data });
+
+    // Verify goal belongs to user
+    const goal = await Goal.findOne({ _id: goalId, user: req.user._id });
+    if (!goal) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Goal not found" });
+    }
+
+    const task = new Task({
+      user: req.user._id,
+      goal: goalId,
+      title,
+      description,
+      type: type || "learning",
+      category: category || "General",
+      difficulty: difficulty || 3,
+      priority: priority || "medium",
+      estimatedTime: estimatedTime || 1,
+      scheduledDate: scheduledDate || new Date(),
+      status: "pending",
+      isAIGenerated: false,
+    });
+
     await task.save();
     await calculateAndStoreWeeklyActivity(req.user._id);
-    // Always return status at top level
-    const responseTask = {
-      ...task.toObject(),
-      status: task.data.status || "pending",
-    };
-    res.status(201).json({ success: true, data: responseTask });
+
+    res.status(201).json({
+      success: true,
+      data: task.formattedData,
+    });
   } catch (error) {
     console.error("Failed to create task:", error);
     res.status(500).json({
@@ -165,36 +181,23 @@ export const createTask = async (req, res) => {
 // Get all tasks for the authenticated user
 export const getTasks = async (req, res) => {
   try {
-    const tasks = await Task.find({ user: req.user._id }).sort({
-      createdAt: -1,
-    });
+    const { goalId } = req.query;
 
-    // Format tasks to match frontend expectations (same as getTasksByDate)
-    const formattedTasks = tasks.map((task) => {
-      const taskData = task.data || {}; // Handle cases where 'data' might be missing
-      return {
-        id: task._id,
-        name: taskData.name || "Untitled Task",
-        status: taskData.status || "pending",
-        priority: taskData.priority || "medium",
-        notes: taskData.notes,
-        estimatedTime: taskData.estimatedTime,
-        completionTime: taskData.completionTime,
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt,
-        // Include submission data
-        submissionType: taskData.submissionType,
-        submissionFile: taskData.submissionFile,
-        actualTime: taskData.actualTime,
-        submittedAt: taskData.submittedAt,
-        category: taskData.category || taskData.type || 'General',
-        isAIGenerated: taskData.isAIGenerated || false,
-        // Keep original data structure for backward compatibility
-        data: taskData
-      };
-    });
+    let query = { user: req.user._id };
+    if (goalId) {
+      query.goal = goalId;
+    }
 
-    res.json({ success: true, data: formattedTasks });
+    const tasks = await Task.find(query)
+      .populate("goal", "field description timeline")
+      .sort({ scheduledDate: 1 });
+
+    const formattedTasks = tasks.map((task) => task.formattedData);
+
+    res.json({
+      success: true,
+      data: formattedTasks,
+    });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -212,41 +215,68 @@ export const updateTask = async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Task not found" });
-    // Allow task updates including completion status changes
 
-    const { data } = req.body;
-    if (!data) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Task data is required" });
-    }
-    console.log("[updateTask] Received data:", JSON.stringify(data, null, 2));
-    
-    // Defensive: Ensure status is set
-    if (!data.status) data.status = task.data.status || "pending";
-    
-    // Merge the new data with existing task data to preserve other fields
-    task.data = { ...task.data, ...data };
-    
-    // Validate required fields for completed tasks
-    if (data.status === 'completed') {
-      if (!data.submissionFile) {
-        console.log("[updateTask] Warning: Completed task missing submission file");
+    const updateData = req.body;
+
+    // Update allowed fields
+    const allowedUpdates = [
+      "title",
+      "description",
+      "type",
+      "category",
+      "difficulty",
+      "priority",
+      "estimatedTime",
+      "status",
+      "scheduledDate",
+      "submissionType",
+      "submissionFile",
+      "submissionText",
+      "submissionLink",
+      "submittedAt",
+      "actualTime",
+    ];
+
+    allowedUpdates.forEach((field) => {
+      if (updateData[field] !== undefined) {
+        task[field] = updateData[field];
       }
-      if (!data.submissionType) {
-        console.log("[updateTask] Warning: Completed task missing submission type");
-      }
-    }
-    
-    await task.save();
-    console.log("[updateTask] Saved task:", JSON.stringify(task.toObject(), null, 2));
-    await calculateAndStoreWeeklyActivity(req.user._id);
-    // Always return status at top level
-    const responseTask = {
-      ...task.toObject(),
-      status: task.data.status || "pending",
+    });
+
+    // Update legacy data field for backward compatibility
+    task.data = {
+      ...task.data,
+      title: task.title,
+      description: task.description,
+      type: task.type,
+      category: task.category,
+      difficulty: task.difficulty,
+      priority: task.priority,
+      estimatedTime: task.estimatedTime,
+      status: task.status,
+      isAIGenerated: task.isAIGenerated,
+      topics: task.topics,
+      resources: task.resources,
+      realWorldApplication: task.realWorldApplication,
+      successCriteria: task.successCriteria,
+      scheduledDate: task.scheduledDate,
+      phase: task.phase,
+      dayNumber: task.dayNumber,
+      submissionType: task.submissionType,
+      submissionFile: task.submissionFile,
+      submissionText: task.submissionText,
+      submissionLink: task.submissionLink,
+      submittedAt: task.submittedAt,
+      actualTime: task.actualTime,
     };
-    res.json({ success: true, data: responseTask });
+
+    await task.save();
+    await calculateAndStoreWeeklyActivity(req.user._id);
+
+    res.json({
+      success: true,
+      data: task.formattedData,
+    });
   } catch (error) {
     console.error("Failed to update task:", error);
     res.status(500).json({
@@ -281,12 +311,15 @@ export const deleteTask = async (req, res) => {
 
 export const getTaskById = async (req, res) => {
   try {
-    const task = await Task.findOne({ _id: req.params.id, user: req.user._id });
+    const task = await Task.findOne({
+      _id: req.params.id,
+      user: req.user._id,
+    }).populate("goal", "field description timeline");
     if (!task)
       return res
         .status(404)
         .json({ success: false, message: "Task not found" });
-    res.json({ success: true, task });
+    res.json({ success: true, data: task.formattedData });
   } catch (error) {
     res.status(500).json({
       success: false,
@@ -307,65 +340,19 @@ export const getTasksByDate = async (req, res) => {
       return res.status(400).json({ message: "Date is required" });
     }
 
-    // Get all tasks for the user and filter by date on the server side
-    // This approach is more reliable than trying to handle timezone conversions
-    const allUserTasks = await Task.find({ user: req.user._id });
+    // Parse the incoming date as UTC midnight
+    const queryDate = new Date(date + "T00:00:00Z");
+    const nextDate = new Date(queryDate);
+    nextDate.setUTCDate(queryDate.getUTCDate() + 1);
 
-    // Filter tasks by comparing the local date portion of createdAt
-    const tasksFromDb = allUserTasks.filter(task => {
-      if (!task.createdAt) return false;
+    // Query tasks scheduled on that UTC day
+    const tasks = await Task.find({
+      user: req.user._id,
+      scheduledDate: { $gte: queryDate, $lt: nextDate },
+    }).populate("goal", "field description timeline");
 
-      // Convert task creation date to local date string (YYYY-MM-DD)
-      const taskDate = new Date(task.createdAt);
-      const taskLocalDate = taskDate.getFullYear() + '-' +
-        String(taskDate.getMonth() + 1).padStart(2, '0') + '-' +
-        String(taskDate.getDate()).padStart(2, '0');
-
-      return taskLocalDate === date;
-    });
-
-    // console.log(`[getTasksByDate] Filtering tasks for date ${date}:`, {
-    //   totalUserTasks: allUserTasks.length,
-    //   tasksFoundForDate: tasksFromDb.length,
-    //   requestedDate: date,
-    //   taskDates: tasksFromDb.map(t => {
-    //     const taskDate = new Date(t.createdAt);
-    //     return {
-    //       id: t._id,
-    //       name: t.data?.name || 'Untitled',
-    //       createdAt: t.createdAt,
-    //       localDate: taskDate.getFullYear() + '-' +
-    //         String(taskDate.getMonth() + 1).padStart(2, '0') + '-' +
-    //         String(taskDate.getDate()).padStart(2, '0')
-    //     };
-    //   })
-    // });
-
-    // **CRUCIAL FIX**: Transform each task into the flat structure the frontend expects.
-    // This moves details from the nested 'data' object to the top level.
-    const formattedTasks = tasksFromDb.map((task) => {
-      const taskData = task.data || {}; // Handle cases where 'data' might be missing
-      return {
-        id: task._id,
-        name: taskData.name || "Untitled Task", // Provide default values to prevent errors
-        status: taskData.status || "pending",
-        priority: taskData.priority || "medium",
-        notes: taskData.notes,
-        estimatedTime: taskData.estimatedTime,
-        completionTime: taskData.completionTime,
-        createdAt: task.createdAt,
-        updatedAt: task.updatedAt,
-        // Include submission data
-        submissionType: taskData.submissionType,
-        submissionFile: taskData.submissionFile,
-        actualTime: taskData.actualTime,
-        submittedAt: taskData.submittedAt,
-        category: taskData.category || taskData.type || 'General',
-        isAIGenerated: taskData.isAIGenerated || false,
-        // Keep original data structure for backward compatibility
-        data: taskData
-      };
-    });
+    // Format tasks for frontend compatibility
+    const formattedTasks = tasks.map((task) => task.formattedData);
 
     res.json({ success: true, data: formattedTasks });
   } catch (err) {
@@ -374,203 +361,347 @@ export const getTasksByDate = async (req, res) => {
   }
 };
 
-// Upload task submission file to S3
+// Upload task submission file to S3 or local storage
 export const uploadTaskSubmission = async (req, res) => {
   try {
-    console.log('[uploadTaskSubmission] S3 upload request received:', {
-      file: req.file ? { 
-        originalname: req.file.originalname, 
-        size: req.file.size,
-        mimetype: req.file.mimetype,
-        key: req.file.key, // S3 key (path in bucket)
-        location: req.file.location, // S3 URL
-        bucket: req.file.bucket
-      } : null,
+    console.log("[uploadTaskSubmission] Upload request received:", {
+      file: req.file
+        ? {
+            originalname: req.file.originalname,
+            size: req.file.size,
+            mimetype: req.file.mimetype,
+            key: req.file.key,
+            location: req.file.location,
+            bucket: req.file.bucket,
+            path: req.file.path, // For local storage
+          }
+        : null,
       body: req.body,
       user: req.user ? req.user._id : null,
-      headers: {
-        'content-type': req.headers['content-type'],
-        'authorization': req.headers['authorization'] ? 'Bearer [token]' : 'none'
-      }
     });
 
     if (!req.file) {
-      console.log('[uploadTaskSubmission] No file uploaded to S3 - multer-s3 may have failed');
+      console.log(
+        "[uploadTaskSubmission] No file uploaded - multer may have failed"
+      );
       return res.status(400).json({
         success: false,
-        message: "No file uploaded to cloud storage"
+        message: "No file uploaded",
       });
     }
 
     const { taskId, submissionType } = req.body;
 
-    if (!taskId || !submissionType) {
-      console.log('[uploadTaskSubmission] Missing required fields:', { taskId, submissionType });
-      return res.status(400).json({
-        success: false,
-        message: "Task ID and submission type are required"
-      });
-    }
-
-    // Verify task exists and belongs to user
-    const task = await Task.findOne({ _id: taskId, user: req.user._id });
-    if (!task) {
-      console.log('[uploadTaskSubmission] Task not found:', { taskId, userId: req.user._id });
-      return res.status(404).json({
-        success: false,
-        message: "Task not found"
-      });
-    }
-
-    // Store S3 key (file path in bucket) instead of local file path
-    const s3Key = req.file.key;
-
-    console.log('[uploadTaskSubmission] File uploaded to S3 successfully:', {
-      s3Key,
-      s3Location: req.file.location,
-      originalName: req.file.originalname,
-      size: req.file.size,
-      bucket: req.file.bucket,
+    console.log("[uploadTaskSubmission] Extracted data:", {
       taskId,
-      submissionType
+      submissionType,
+      taskIdType: typeof taskId,
+      submissionTypeType: typeof submissionType,
     });
 
-    res.json({
-      success: true,
-      data: {
-        filePath: s3Key, // Store S3 key as filePath for compatibility
-        s3Key: s3Key,
+    // Temporary fix: Handle undefined taskId
+    let actualTaskId = taskId;
+    if (!taskId) {
+      console.log(
+        "[uploadTaskSubmission] taskId is undefined, using temporary ID"
+      );
+      actualTaskId = `temp-${Date.now()}`;
+    }
+
+    if (!submissionType) {
+      console.log("[uploadTaskSubmission] Missing submission type:", {
+        taskId: actualTaskId,
+        submissionType,
+        hasTaskId: !!taskId,
+        hasSubmissionType: !!submissionType,
+      });
+      return res.status(400).json({
+        success: false,
+        message: "Submission type is required",
+      });
+    }
+
+    // Only validate taskId format if it's not a temporary ID
+    if (actualTaskId !== taskId && !actualTaskId.startsWith("temp-")) {
+      if (!actualTaskId.match(/^[0-9a-fA-F]{24}$/)) {
+        console.log(
+          "[uploadTaskSubmission] Invalid taskId format:",
+          actualTaskId
+        );
+        return res.status(400).json({
+          success: false,
+          message: "Invalid task ID format",
+        });
+      }
+    }
+
+    // Only verify task exists if we have a real taskId
+    let task = null;
+    if (!actualTaskId.startsWith("temp-")) {
+      task = await Task.findOne({ _id: actualTaskId, user: req.user._id });
+      if (!task) {
+        console.log("[uploadTaskSubmission] Task not found:", {
+          taskId: actualTaskId,
+          userId: req.user._id,
+          userExists: !!req.user,
+        });
+        return res.status(404).json({
+          success: false,
+          message: "Task not found",
+        });
+      }
+
+      console.log("[uploadTaskSubmission] Task found:", {
+        taskId: task._id,
+        taskTitle: task.title,
+        taskStatus: task.status,
+      });
+    } else {
+      console.log(
+        "[uploadTaskSubmission] Using temporary taskId:",
+        actualTaskId
+      );
+    }
+
+    // Determine if using S3 or local storage
+    const isS3Storage = req.file.key && req.file.location && req.file.bucket;
+    const isLocalStorage = req.file.path;
+
+    let filePath, fileData;
+
+    if (isS3Storage) {
+      // S3 storage
+      filePath = req.file.key;
+      fileData = {
+        filePath: req.file.key,
+        s3Key: req.file.key,
         s3Location: req.file.location,
         originalName: req.file.originalname,
         size: req.file.size,
         submissionType,
-        cloudStorage: true // Flag to indicate this is stored in cloud
-      }
+        cloudStorage: true,
+      };
+      console.log("[uploadTaskSubmission] File uploaded to S3 successfully:", {
+        s3Key: req.file.key,
+        s3Location: req.file.location,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        bucket: req.file.bucket,
+        taskId,
+        submissionType,
+      });
+    } else if (isLocalStorage) {
+      // Local storage
+      filePath = req.file.path;
+      fileData = {
+        filePath: req.file.path,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        submissionType,
+        cloudStorage: false,
+      };
+      console.log(
+        "[uploadTaskSubmission] File uploaded to local storage successfully:",
+        {
+          filePath: req.file.path,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          taskId,
+          submissionType,
+        }
+      );
+    } else {
+      console.log("[uploadTaskSubmission] Unknown storage type:", req.file);
+      return res.status(500).json({
+        success: false,
+        message: "File upload failed - unknown storage type",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        ...fileData,
+        taskId: actualTaskId, // Include the taskId that was actually used
+        isTemporaryTaskId: actualTaskId.startsWith("temp-"),
+      },
     });
   } catch (error) {
-    console.error("S3 file upload error:", error);
+    console.error("File upload error:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to upload file to cloud storage",
-      error: error.message
+      message: "Failed to upload file",
+      error: error.message,
     });
   }
 };
 
-// View task submission file from S3
+// View task submission file from S3 or local storage
 export const viewTaskSubmission = async (req, res) => {
   try {
     const { id: taskId } = req.params;
-    
-    console.log('[viewTaskSubmission] S3 request received:', {
+
+    console.log("[viewTaskSubmission] Request received:", {
       taskId,
       userId: req.user?._id,
-      headers: {
-        'user-agent': req.headers['user-agent'],
-        'referer': req.headers['referer']
-      }
     });
 
     // Find task and verify ownership
     const task = await Task.findOne({ _id: taskId, user: req.user._id });
     if (!task) {
-      console.log('[viewTaskSubmission] Task not found:', { taskId, userId: req.user._id });
+      console.log("[viewTaskSubmission] Task not found:", {
+        taskId,
+        userId: req.user._id,
+      });
       return res.status(404).json({
         success: false,
-        message: "Task not found"
+        message: "Task not found",
       });
     }
 
-    const submissionFile = task.data?.submissionFile;
+    const submissionFile = task.submissionFile;
     if (!submissionFile) {
-      console.log('[viewTaskSubmission] No submission file found:', { 
-        taskId, 
-        taskData: task.data,
-        hasSubmissionFile: !!task.data?.submissionFile 
+      console.log("[viewTaskSubmission] No submission file found:", {
+        taskId,
+        hasSubmissionFile: !!task.submissionFile,
       });
       return res.status(404).json({
         success: false,
-        message: "No submission file found for this task"
+        message: "No submission file found for this task",
       });
     }
 
-    // For S3, submissionFile is the S3 key
-    const s3Key = submissionFile;
-    
-    console.log('[viewTaskSubmission] Checking S3 file:', {
-      s3Key,
-      bucket: S3_CONFIG.bucket
-    });
+    // Check if it's a local file or S3 file
+    const isLocalFile =
+      submissionFile.startsWith("/") || submissionFile.includes("uploads");
+    const isS3File = submissionFile.includes("submissions/") && !isLocalFile;
 
-    // Check if file exists in S3 and get file info
-    try {
-      const headCommand = new GetObjectCommand({
-        Bucket: S3_CONFIG.bucket,
-        Key: s3Key,
+    if (isLocalFile) {
+      // Handle local file
+      const fs = await import("fs");
+      const path = await import("path");
+
+      const filePath = submissionFile;
+
+      if (!fs.existsSync(filePath)) {
+        console.log("[viewTaskSubmission] Local file not found:", filePath);
+        return res.status(404).json({
+          success: false,
+          message: "Submission file not found",
+        });
+      }
+
+      const stats = fs.statSync(filePath);
+      const fileName = path.basename(filePath);
+
+      console.log("[viewTaskSubmission] Local file found:", {
+        filePath,
+        fileName,
+        fileSize: stats.size,
+        lastModified: stats.mtime,
       });
-      
-      const headResult = await s3Client.send(headCommand);
-      
-      console.log('[viewTaskSubmission] S3 file found:', {
-        s3Key,
-        contentLength: headResult.ContentLength,
-        contentType: headResult.ContentType,
-        lastModified: headResult.LastModified
-      });
-      
-      // Generate signed URL for secure access (expires in 1 hour)
-      const signedUrl = await getFileSignedUrl(s3Key, 3600);
-      
-      console.log('[viewTaskSubmission] S3 signed URL generated successfully');
 
       res.json({
         success: true,
         data: {
-          fileUrl: signedUrl, // Signed URL for direct S3 access
-          submissionType: task.data?.submissionType,
-          submittedAt: task.data?.submittedAt,
-          originalName: task.data?.originalName || s3Key.split('/').pop(),
-          fileSize: headResult.ContentLength,
-          lastModified: headResult.LastModified,
-          cloudStorage: true, // Flag to indicate this is from cloud storage
-          expiresIn: 3600 // URL expires in 1 hour
-        }
+          fileUrl: `/api/tasks/${taskId}/submission/download`, // Use download endpoint
+          submissionType: task.submissionType,
+          submittedAt: task.submittedAt,
+          originalName: fileName,
+          fileSize: stats.size,
+          lastModified: stats.mtime,
+          cloudStorage: false,
+          expiresIn: null,
+        },
       });
-      
-    } catch (s3Error) {
-      console.log('[viewTaskSubmission] S3 file not found or error:', {
+    } else if (isS3File) {
+      // Handle S3 file (existing logic)
+      const s3Key = submissionFile;
+
+      console.log("[viewTaskSubmission] Checking S3 file:", {
         s3Key,
-        error: s3Error.message,
-        code: s3Error.name
+        bucket: S3_CONFIG.bucket,
       });
-      
-      if (s3Error.name === 'NoSuchKey') {
-        return res.status(404).json({
-          success: false,
-          message: "Submission file not found in cloud storage"
+
+      // Check if file exists in S3 and get file info
+      try {
+        const headCommand = new GetObjectCommand({
+          Bucket: S3_CONFIG.bucket,
+          Key: s3Key,
         });
-      } else if (s3Error.name === 'AccessDenied') {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied to submission file"
+
+        const headResult = await s3Client.send(headCommand);
+
+        console.log("[viewTaskSubmission] S3 file found:", {
+          s3Key,
+          contentLength: headResult.ContentLength,
+          contentType: headResult.ContentType,
+          lastModified: headResult.LastModified,
         });
-      } else {
-        throw s3Error; // Re-throw other errors
+
+        // Generate signed URL for secure access (expires in 1 hour)
+        const signedUrl = await getFileSignedUrl(s3Key, 3600);
+
+        console.log(
+          "[viewTaskSubmission] S3 signed URL generated successfully"
+        );
+
+        res.json({
+          success: true,
+          data: {
+            fileUrl: signedUrl,
+            submissionType: task.submissionType,
+            submittedAt: task.submittedAt,
+            originalName: task.data?.originalName || s3Key.split("/").pop(),
+            fileSize: headResult.ContentLength,
+            lastModified: headResult.LastModified,
+            cloudStorage: true,
+            expiresIn: 3600,
+          },
+        });
+      } catch (s3Error) {
+        console.log("[viewTaskSubmission] S3 file not found or error:", {
+          s3Key,
+          error: s3Error.message,
+          code: s3Error.name,
+        });
+
+        if (s3Error.name === "NoSuchKey") {
+          return res.status(404).json({
+            success: false,
+            message: "Submission file not found in cloud storage",
+          });
+        } else if (s3Error.name === "AccessDenied") {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied to submission file",
+          });
+        } else {
+          throw s3Error;
+        }
       }
+    } else {
+      console.log("[viewTaskSubmission] Unknown file type:", submissionFile);
+      return res.status(500).json({
+        success: false,
+        message: "Unknown file storage type",
+      });
     }
-    
   } catch (error) {
-    console.error("[viewTaskSubmission] S3 Error:", {
+    console.error("[viewTaskSubmission] Error:", {
       message: error.message,
       stack: error.stack,
       taskId: req.params.id,
-      userId: req.user?._id
+      userId: req.user?._id,
     });
-    
+
     res.status(500).json({
       success: false,
-      message: "Failed to retrieve submission file from cloud storage",
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      message: "Failed to retrieve submission file",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error.message
+          : "Internal server error",
     });
   }
 };

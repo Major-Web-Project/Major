@@ -5,7 +5,7 @@ import { utcToLocalDateString } from "../utils/dateUtils";
 let authStore = null;
 const getAuthStore = async () => {
   if (!authStore) {
-    const { useAuthStore } = await import('../store/authStore.js');
+    const { useAuthStore } = await import("../store/authStore.js");
     authStore = useAuthStore;
   }
   return authStore;
@@ -21,7 +21,7 @@ const api = axios.create({
 });
 
 // Log the API configuration for debugging
-console.log('[API] Axios instance created with baseURL:', api.defaults.baseURL);
+console.log("[API] Axios instance created with baseURL:", api.defaults.baseURL);
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -32,18 +32,18 @@ api.interceptors.request.use(
       method: config.method,
       hasToken: !!token,
       isFormData: config.data instanceof FormData,
-      contentType: config.headers['Content-Type']
+      contentType: config.headers["Content-Type"],
     });
-    
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     // For FormData, remove the default Content-Type to let browser set it with boundary
     if (config.data instanceof FormData) {
-      delete config.headers['Content-Type'];
+      delete config.headers["Content-Type"];
     }
-    
+
     return config;
   },
   (error) => {
@@ -59,50 +59,59 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear invalid token from localStorage
       localStorage.removeItem("token");
-      
+
       // Get auth store to clear authentication state
       try {
         const store = await getAuthStore();
         const { handleAuthFailure } = store.getState();
-        const errorMessage = error.response?.data?.message || 'Your session has expired. Please log in again.';
+        const errorMessage =
+          error.response?.data?.message ||
+          "Your session has expired. Please log in again.";
         handleAuthFailure(errorMessage);
       } catch (storeError) {
-        console.error('Failed to access auth store:', storeError);
+        console.error("Failed to access auth store:", storeError);
       }
-      
+
       // Show user-friendly error message and redirect
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         // Check if we're not already on the auth page to avoid infinite redirects
         const currentPath = window.location.pathname;
-        if (!currentPath.includes('/auth')) {
+        if (!currentPath.includes("/auth")) {
           // Show error message
-          const errorMessage = error.response?.data?.message || 'Your session has expired. Please log in again.';
-          console.error('Authentication failed:', errorMessage);
-          
+          const errorMessage =
+            error.response?.data?.message ||
+            "Your session has expired. Please log in again.";
+          console.error("Authentication failed:", errorMessage);
+
           // Redirect to login page
           window.location.href = "/auth/signin";
         }
       }
     }
-    
+
     // Handle other error types with user-friendly messages
     else if (error.response?.status >= 500) {
-      const serverErrorMessage = 'Server error occurred. Please try again later.';
-      console.error('Server error:', error);
+      const serverErrorMessage =
+        "Server error occurred. Please try again later.";
+      console.error("Server error:", error);
     }
-    
+
     // Handle network errors
-    else if (!error.response && (error.code === 'NETWORK_ERROR' || error.message === 'Network Error')) {
-      const networkErrorMessage = 'Network error. Please check your connection and try again.';
-      console.error('Network error:', error);
+    else if (
+      !error.response &&
+      (error.code === "NETWORK_ERROR" || error.message === "Network Error")
+    ) {
+      const networkErrorMessage =
+        "Network error. Please check your connection and try again.";
+      console.error("Network error:", error);
     }
-    
+
     // Handle timeout errors
-    else if (error.code === 'ECONNABORTED') {
-      const timeoutErrorMessage = 'Request timed out. Please try again.';
-      console.error('Timeout error:', error);
+    else if (error.code === "ECONNABORTED") {
+      const timeoutErrorMessage = "Request timed out. Please try again.";
+      console.error("Timeout error:", error);
     }
-    
+
     return Promise.reject(error);
   }
 );
@@ -163,7 +172,7 @@ export const apiService = {
       // Backend already formats the data correctly, so we can use it directly
       return { data: { tasks: Array.isArray(tasks) ? tasks : [] } };
     } catch (error) {
-      console.error('Error fetching tasks by date:', error);
+      console.error("Error fetching tasks by date:", error);
       return { data: { tasks: [] } }; // Return empty array on error
     }
   },
@@ -171,16 +180,16 @@ export const apiService = {
   // Get all tasks
   getTasks: async () => {
     try {
-      const response = await api.get('/tasks');
+      const response = await api.get("/tasks");
       // Backend returns { success: true, data: [...tasks] }
       const tasks = response.data?.data || [];
 
-      console.log('[API] All tasks:', tasks);
+      console.log("[API] All tasks:", tasks);
 
       // Backend already formats the data correctly, so we can use it directly
       return { data: { tasks: Array.isArray(tasks) ? tasks : [] } };
     } catch (error) {
-      console.error('Error fetching tasks:', error);
+      console.error("Error fetching tasks:", error);
       return { data: { tasks: [] } }; // Return empty array on error
     }
   },
@@ -188,14 +197,14 @@ export const apiService = {
   // Create new task
   createTask: async (taskData) => {
     try {
-      const response = await api.post('/tasks', taskData);
+      const response = await api.post("/tasks", taskData);
 
-      console.log('[API] Create task response:', response.data);
+      console.log("[API] Create task response:", response.data);
 
       // Backend already formats the data correctly
       return response.data;
     } catch (error) {
-      console.error('Error creating task:', error);
+      console.error("Error creating task:", error);
       throw error;
     }
   },
@@ -203,25 +212,25 @@ export const apiService = {
   // Update existing task
   updateTask: async (taskId, taskData) => {
     try {
-      console.log('[API] Updating task:', {
+      console.log("[API] Updating task:", {
         taskId,
         taskData,
-        wrappedData: { data: taskData }
+        wrappedData: { data: taskData },
       });
 
       const response = await api.put(`/tasks/${taskId}`, { data: taskData });
 
-      console.log('[API] Update task response:', response.data);
+      console.log("[API] Update task response:", response.data);
 
       // Backend already formats the data correctly
       return response.data;
     } catch (error) {
-      console.error('[API] Error updating task:', {
+      console.error("[API] Error updating task:", {
         taskId,
         taskData,
         message: error.message,
         status: error.response?.status,
-        responseData: error.response?.data
+        responseData: error.response?.data,
       });
       throw error;
     }
@@ -233,7 +242,7 @@ export const apiService = {
       const response = await api.get(`/tasks/${taskId}`);
       return response.data;
     } catch (error) {
-      console.error('Error getting task by ID:', error);
+      console.error("Error getting task by ID:", error);
       throw error;
     }
   },
@@ -244,7 +253,7 @@ export const apiService = {
       const response = await api.delete(`/tasks/${taskId}`);
       return response.data;
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error("Error deleting task:", error);
       throw error;
     }
   },
@@ -252,31 +261,36 @@ export const apiService = {
   // Upload task submission file
   uploadTaskSubmission: async (formData) => {
     try {
-      console.log('[API] Uploading task submission:', {
+      console.log("[API] Uploading task submission:", {
         hasFormData: formData instanceof FormData,
-        entries: formData instanceof FormData ? Array.from(formData.entries()).map(([key, value]) => [
-          key, 
-          value instanceof File ? { name: value.name, size: value.size, type: value.type } : value
-        ]) : 'Not FormData'
+        entries:
+          formData instanceof FormData
+            ? Array.from(formData.entries()).map(([key, value]) => [
+                key,
+                value instanceof File
+                  ? { name: value.name, size: value.size, type: value.type }
+                  : value,
+              ])
+            : "Not FormData",
       });
 
-      const response = await api.post('/tasks/upload-submission', formData, {
+      const response = await api.post("/tasks/upload-submission", formData, {
         timeout: 30000, // Increase timeout for file uploads
         // Don't set Content-Type header - let axios set it automatically with boundary
       });
-      
-      console.log('[API] Upload response:', response.data);
+
+      console.log("[API] Upload response:", response.data);
       return response.data;
     } catch (error) {
-      console.error('[API] Error uploading task submission:', {
+      console.error("[API] Error uploading task submission:", {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
         config: {
           url: error.config?.url,
           method: error.config?.method,
-          headers: error.config?.headers
-        }
+          headers: error.config?.headers,
+        },
       });
       throw error;
     }
@@ -288,7 +302,7 @@ export const apiService = {
       const response = await api.get(`/tasks/${taskId}/submission`);
       return response.data;
     } catch (error) {
-      console.error('Error viewing task submission:', error);
+      console.error("Error viewing task submission:", error);
       throw error;
     }
   },
@@ -297,14 +311,14 @@ export const apiService = {
   downloadTaskSubmission: async (taskId) => {
     try {
       const response = await api.get(`/tasks/${taskId}/submission/download`, {
-        responseType: 'blob'
+        responseType: "blob",
       });
       return response;
     } catch (error) {
-      console.error('Error downloading task submission:', error);
+      console.error("Error downloading task submission:", error);
       throw error;
     }
-  }
+  },
 };
 
 export default api;

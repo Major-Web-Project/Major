@@ -1,675 +1,634 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from '../ui/card';
-import { Button } from '../ui/button';
-import { aiAssistant, completeCurrentGoal, resetCurrentGoal, getGoalProgress } from '../../services/aiLearningService';
-import { taskSyncService } from '../../services/taskSyncService';
-import { useTasks } from '../../contexts/TasksContext';
-import { TaskSubmitButton } from '../tasks/TaskSubmitButton';
-import { apiService } from '../../services/api';
+import React, { useState, useEffect } from "react";
+import { Card, CardContent } from "../ui/card";
+import { Button } from "../ui/button";
+import {
+  aiAssistant,
+  completeCurrentGoal,
+  resetCurrentGoal,
+  getGoalProgress,
+} from "../../services/aiLearningService";
+import { taskSyncService } from "../../services/taskSyncService";
+import { useTasks } from "../../contexts/TasksContext";
+import { TaskSubmitButton } from "../tasks/TaskSubmitButton";
+import { apiService } from "../../services/api";
 
 export const LearningDashboardScreen = ({
-    learningData,
-    userProfile,
-    roadmap,
-    dashboardData,
-    aiTasksData,
-    onTaskComplete,
-    onUpdateProgress
+  learningData,
+  userProfile,
+  roadmap,
+  dashboardData,
+  aiTasksData,
+  onTaskComplete,
+  onUpdateProgress,
 }) => {
-    const { createTask, refreshTasks } = useTasks();
-    const [currentTasks, setCurrentTasks] = useState(aiTasksData || []);
-    const [analytics, setAnalytics] = useState(dashboardData || null);
-    const [recommendations, setRecommendations] = useState([]);
-    const [taskTimers, setTaskTimers] = useState({});
-    const [goalProgress] = useState(getGoalProgress());
-    
-    // Task submission state
-    const [expandedSubmission, setExpandedSubmission] = useState(null);
+  const { createTask, refreshTasks } = useTasks();
+  const [currentTasks, setCurrentTasks] = useState(
+    Array.isArray(aiTasksData) ? aiTasksData : []
+  );
+  const [analytics, setAnalytics] = useState(dashboardData || null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [taskTimers, setTaskTimers] = useState({});
+  const [goalProgress] = useState(getGoalProgress());
 
-    useEffect(() => {
-        // Scroll to top when component mounts
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Task submission state
+  const [expandedSubmission, setExpandedSubmission] = useState(null);
 
-        // Initialize AI assistant with user profile
-        if (userProfile) {
-            aiAssistant.userProfile = userProfile;
-        }
+  useEffect(() => {
+    // Scroll to top when component mounts
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
-        // Load analytics and recommendations
-        const analyticsData = aiAssistant.getLearningAnalytics();
-        const recs = aiAssistant.generateImprovementRecommendations(
-            userProfile || {},
-            analyticsData
+    // Initialize AI assistant with user profile
+    if (userProfile) {
+      aiAssistant.userProfile = userProfile;
+    }
+
+    // Load analytics
+    const analyticsData = aiAssistant.getLearningAnalytics();
+    setAnalytics((prev) => ({ ...prev, ...analyticsData }));
+
+    // Set recommendations to empty array since we removed the AI recommendation generation
+    setRecommendations([]);
+
+    // Use provided AI tasks
+    let tasksToSet = [];
+    if (aiTasksData && aiTasksData.length > 0) {
+      tasksToSet = aiTasksData;
+    }
+
+    setCurrentTasks(tasksToSet);
+
+    // Sync AI tasks with task service
+    if (tasksToSet.length > 0) {
+      taskSyncService.syncAITasks(tasksToSet);
+    }
+  }, [learningData, userProfile, roadmap, dashboardData, aiTasksData]);
+
+  // Listen for task updates from other pages
+  useEffect(() => {
+    const handleTasksUpdated = async (event) => {
+      console.log(
+        "Learning Dashboard: Tasks updated from other pages",
+        event.detail
+      );
+
+      // Refresh analytics when tasks are updated
+      const newAnalytics = aiAssistant.getLearningAnalytics();
+      setAnalytics((prev) => ({ ...prev, ...newAnalytics }));
+
+      // If an AI task was completed elsewhere, update local state
+      if (event.detail?.taskId && event.detail?.action === "completed") {
+        setCurrentTasks((tasks) =>
+          tasks.map((t) =>
+            t.databaseId === event.detail.taskId || t.id === event.detail.taskId
+              ? { ...t, status: "completed" }
+              : t
+          )
         );
-
-        setAnalytics(prev => ({ ...prev, ...analyticsData }));
-        setRecommendations(recs);
-
-        // Use provided AI tasks or generate new ones
-        let tasksToSet = [];
-        if (aiTasksData && aiTasksData.length > 0) {
-            tasksToSet = aiTasksData;
-        } else if (roadmap && userProfile) {
-            tasksToSet = aiAssistant.generateDailyTasks(
-                roadmap,
-                learningData?.currentPhase || 1,
-                learningData?.dayNumber || 1,
-                userProfile
-            );
-        }
-
-        setCurrentTasks(tasksToSet);
-
-        // Sync AI tasks with task service
-        if (tasksToSet.length > 0) {
-            taskSyncService.syncAITasks(tasksToSet);
-        }
-    }, [learningData, userProfile, roadmap, dashboardData, aiTasksData]);
-
-
-
-    // Listen for task updates from other pages
-    useEffect(() => {
-        const handleTasksUpdated = async (event) => {
-            console.log('Learning Dashboard: Tasks updated from other pages', event.detail);
-
-            // Refresh analytics when tasks are updated
-            const newAnalytics = aiAssistant.getLearningAnalytics();
-            setAnalytics(prev => ({ ...prev, ...newAnalytics }));
-
-            // If an AI task was completed elsewhere, update local state
-            if (event.detail?.taskId && event.detail?.action === 'completed') {
-                setCurrentTasks(tasks =>
-                    tasks.map(t =>
-                        t.databaseId === event.detail.taskId || t.id === event.detail.taskId
-                            ? { ...t, status: 'completed' }
-                            : t
-                    )
-                );
-            }
-        };
-
-        window.addEventListener('tasksUpdated', handleTasksUpdated);
-
-        return () => {
-            window.removeEventListener('tasksUpdated', handleTasksUpdated);
-        };
-    }, []);
-
-    // Update timers every second
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setTaskTimers(prev => {
-                const updated = { ...prev };
-                Object.keys(updated).forEach(taskId => {
-                    if (updated[taskId].isRunning && updated[taskId].startTime) {
-                        const now = Date.now();
-                        const elapsed = now - updated[taskId].startTime - (updated[taskId].pausedTime || 0);
-                        updated[taskId].elapsedTime = Math.max(0, elapsed);
-                    }
-                });
-                return updated;
-            });
-
-
-        }, 1000);
-
-        return () => clearInterval(interval);
-    }, []);
-
-
-
-
-
-
-
-    const handleStartTask = (taskId) => {
-        const startTime = Date.now();
-        setTaskTimers(prev => ({
-            ...prev,
-            [taskId]: {
-                startTime,
-                isRunning: true,
-                elapsedTime: 0,
-                pausedTime: 0,
-                breakCount: 0
-            }
-        }));
-
-        console.log(`Starting task ${taskId} at ${new Date(startTime).toISOString()}`);
+      }
     };
 
-    const handlePauseResumeTask = (taskId) => {
-        const timer = taskTimers[taskId];
-        if (!timer) return;
+    window.addEventListener("tasksUpdated", handleTasksUpdated);
 
-        if (timer.isRunning) {
-            // Pause timer
-            const pauseTime = Date.now();
-            setTaskTimers(prev => ({
-                ...prev,
-                [taskId]: {
-                    ...prev[taskId],
-                    isRunning: false,
-                    lastPauseTime: pauseTime,
-                    breakCount: prev[taskId].breakCount + 1
-                }
-            }));
-        } else {
-            // Resume timer
-            const resumeTime = Date.now();
-            const additionalPausedTime = timer.lastPauseTime ? resumeTime - timer.lastPauseTime : 0;
-
-            setTaskTimers(prev => ({
-                ...prev,
-                [taskId]: {
-                    ...prev[taskId],
-                    isRunning: true,
-                    pausedTime: (prev[taskId].pausedTime || 0) + additionalPausedTime,
-                    lastPauseTime: null
-                }
-            }));
-        }
+    return () => {
+      window.removeEventListener("tasksUpdated", handleTasksUpdated);
     };
+  }, []);
 
-    // Handle AI task submission with database creation if needed
-    const handleAITaskSubmission = async (task, submissionData) => {
-        try {
-            let databaseTaskId = task.databaseId;
+  // Update current tasks when aiTasksData changes
+  useEffect(() => {
+    if (Array.isArray(aiTasksData)) {
+      setCurrentTasks(aiTasksData);
+    }
+  }, [aiTasksData]);
 
-            // If this is an AI task without database ID, create it first
-            if (!databaseTaskId) {
-                const taskData = {
-                    name: task.title,
-                    status: 'pending',
-                    priority: task.priority || 'medium',
-                    notes: task.description || '',
-                    estimatedTime: task.estimatedTime,
-                    category: task.category || 'AI Generated',
-                    isAIGenerated: true
-                };
+  // Task timer management
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTaskTimers((prev) => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach((taskId) => {
+          if (updated[taskId].isRunning) {
+            updated[taskId].elapsedTime += 1;
+          }
+        });
+        return updated;
+      });
+    }, 1000);
 
-                console.log('Creating AI task in database...', taskData);
-                const createTaskResponse = await createTask({ data: taskData });
-                databaseTaskId = createTaskResponse.data.id || createTaskResponse.data._id;
-                console.log('AI task created with ID:', databaseTaskId);
+    return () => clearInterval(interval);
+  }, []);
 
-                // Store database ID in local task
-                setCurrentTasks(tasks =>
-                    tasks.map(t =>
-                        t.id === task.id ? { ...t, databaseId: databaseTaskId } : t
-                    )
-                );
-            }
+  const handleStartTask = (taskId) => {
+    setTaskTimers((prev) => ({
+      ...prev,
+      [taskId]: {
+        isRunning: true,
+        startTime: Date.now(),
+        elapsedTime: prev[taskId]?.elapsedTime || 0,
+      },
+    }));
+  };
 
-            // Update local state immediately for better UX
-            setCurrentTasks(tasks =>
-                tasks.map(t =>
-                    t.id === task.id ? {
-                        ...t,
-                        status: 'completed',
-                        submissionType: submissionData.submissionType,
-                        submissionFile: submissionData.submissionFile,
-                        actualTime: submissionData.actualTime,
-                        completionTime: submissionData.completionTime,
-                        submittedAt: submissionData.submittedAt,
-                        databaseId: databaseTaskId
-                    } : t
-                )
-            );
+  const handlePauseResumeTask = (taskId) => {
+    setTaskTimers((prev) => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        isRunning: !prev[taskId]?.isRunning,
+      },
+    }));
+  };
 
-            // Update analytics
-            const newAnalytics = aiAssistant.getLearningAnalytics();
-            setAnalytics(prev => ({ ...prev, ...newAnalytics }));
+  const handleStopTask = (taskId) => {
+    setTaskTimers((prev) => ({
+      ...prev,
+      [taskId]: {
+        ...prev[taskId],
+        isRunning: false,
+      },
+    }));
+  };
 
-            // Call parent callback
-            if (onTaskComplete) {
-                onTaskComplete({
-                    taskId: task.id,
-                    timeSpent: submissionData.actualTime,
-                    submissionType: submissionData.submissionType
-                });
-            }
+  const handleAITaskSubmission = async (task, submissionData) => {
+    try {
+      console.log("Submitting AI task:", task.id, submissionData);
 
-            // Refresh global tasks
-            await refreshTasks();
+      // Update task status to completed
+      const updatedTask = {
+        ...task,
+        status: "completed",
+        submissionType: submissionData.type,
+        submissionFile: submissionData.filePath,
+        submittedAt: new Date().toISOString(),
+        actualTime: taskTimers[task.id]?.elapsedTime / 3600 || 0, // Convert seconds to hours
+      };
 
-        } catch (error) {
-            console.error('AI task submission failed:', error);
-            throw error;
-        }
-    };
+      // Update local state
+      setCurrentTasks((tasks) =>
+        tasks.map((t) => (t.id === task.id ? updatedTask : t))
+      );
 
-    const generateNewTasks = () => {
-        if (!roadmap || !userProfile) return;
+      // Stop the timer
+      handleStopTask(task.id);
 
-        const newDayNumber = (learningData?.dayNumber || 1) + 1;
-        const newTasks = aiAssistant.generateDailyTasks(
-            roadmap,
-            learningData?.currentPhase || 1,
-            newDayNumber,
-            userProfile
-        );
+      // Update analytics
+      const newAnalytics = aiAssistant.getLearningAnalytics();
+      setAnalytics((prev) => ({ ...prev, ...newAnalytics }));
 
-        setCurrentTasks(newTasks);
+      // Notify parent component
+      if (onTaskComplete) {
+        onTaskComplete(task.id);
+      }
 
-        // Sync new tasks with task service
-        if (newTasks.length > 0) {
-            taskSyncService.syncAITasks(newTasks);
+      // Update progress
+      if (onUpdateProgress) {
+        onUpdateProgress();
+      }
 
-            // Dispatch event to notify other pages of new AI tasks
-            window.dispatchEvent(new CustomEvent('tasksUpdated', {
-                detail: {
-                    action: 'ai-tasks-generated',
-                    source: 'ai-learning',
-                    count: newTasks.length
-                }
-            }));
-        }
+      // Dispatch event for other components
+      window.dispatchEvent(
+        new CustomEvent("tasksUpdated", {
+          detail: {
+            taskId: task.id,
+            action: "completed",
+            task: updatedTask,
+          },
+        })
+      );
 
-        if (onUpdateProgress) {
-            onUpdateProgress({ dayNumber: newDayNumber });
-        }
-    };
+      console.log("AI task submitted successfully:", updatedTask);
+    } catch (error) {
+      console.error("Error submitting AI task:", error);
+      alert("Failed to submit task. Please try again.");
+    }
+  };
 
-    const handleCompleteGoal = () => {
-        if (window.confirm('Are you sure you want to mark this goal as completed? This will clear your current progress and allow you to set a new goal.')) {
-            completeCurrentGoal();
-            window.location.href = '/assessment'; // Redirect to start new goal
-        }
-    };
+  const generateNewTasks = () => {
+    alert(
+      "Task generation is now handled through the goal creation process. Please create a new goal to generate tasks."
+    );
+  };
 
-    const handleResetGoal = async () => {
-        if (window.confirm('Are you sure you want to reset your current goal? This will permanently delete all your progress and AI tasks and cannot be undone.')) {
-            try {
-                console.log('🔄 Starting goal reset...');
+  const handleCompleteGoal = () => {
+    try {
+      const completedGoal = completeCurrentGoal();
+      console.log("Goal completed:", completedGoal);
+      alert("Congratulations! You've completed your learning goal!");
+      // You might want to redirect to a completion page or reset the app
+    } catch (error) {
+      console.error("Error completing goal:", error);
+      alert("Failed to complete goal. Please try again.");
+    }
+  };
 
-                // Delete all AI-generated tasks from database
-                console.log('📤 Fetching all tasks...');
-                const allTasks = await apiService.getTasks();
-                console.log('📋 All tasks response:', allTasks);
+  const handleResetGoal = async () => {
+    if (
+      window.confirm(
+        "Are you sure you want to reset your current goal? This will clear all progress."
+      )
+    ) {
+      try {
+        resetCurrentGoal();
+        setCurrentTasks([]);
+        setAnalytics(null);
+        setRecommendations([]);
+        setTaskTimers({});
+        console.log("Goal reset successfully");
+        alert("Goal reset successfully. You can start a new learning journey!");
+      } catch (error) {
+        console.error("Error resetting goal:", error);
+        alert("Failed to reset goal. Please try again.");
+      }
+    }
+  };
 
-                const aiTasks = allTasks.data?.tasks?.filter(task => task.isAIGenerated) || [];
-                console.log('🤖 Found AI tasks to delete:', aiTasks.length, aiTasks);
+  // Calculate completion percentage
+  const completionPercentage =
+    currentTasks.length > 0
+      ? Math.round(
+          (currentTasks.filter((task) => task.status === "completed").length /
+            currentTasks.length) *
+            100
+        )
+      : 0;
 
-                if (aiTasks.length === 0) {
-                    console.log('ℹ️ No AI tasks found to delete');
-                } else {
-                    console.log('🗑️ Deleting AI tasks...');
-                    for (const task of aiTasks) {
-                        try {
-                            console.log('🗑️ Deleting task:', task.id, task.name);
-                            const deleteResponse = await apiService.deleteTask(task.id);
-                            console.log('✅ Deleted AI task:', task.id, deleteResponse);
-                        } catch (error) {
-                            console.error('❌ Failed to delete AI task:', task.id, error);
-                        }
-                    }
-                }
+  // Calculate total estimated time
+  const totalEstimatedTime = currentTasks.reduce(
+    (sum, task) => sum + (task.estimatedTime || 0),
+    0
+  );
 
-                // Clear AI tasks from sync service
-                taskSyncService.clearAITasks();
+  // Calculate total actual time
+  const totalActualTime =
+    Object.values(taskTimers).reduce(
+      (sum, timer) => sum + (timer.elapsedTime || 0),
+      0
+    ) / 3600;
 
-                // Dispatch event to notify other pages that AI tasks were deleted
-                window.dispatchEvent(new CustomEvent('tasksUpdated', {
-                    detail: {
-                        action: 'ai-tasks-reset',
-                        source: 'ai-learning'
-                    }
-                }));
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Learning Dashboard</h1>
+          <p className="text-gray-300">
+            Phase {learningData?.currentPhase || 1}, Day{" "}
+            {learningData?.dayNumber || 1}
+          </p>
+        </div>
 
-                // Reset goal
-                resetCurrentGoal();
-                window.location.href = '/assessment'; // Redirect to start new goal
-            } catch (error) {
-                console.error('Failed to reset goal and delete AI tasks:', error);
-            }
-        }
-    };
+        {/* Progress Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-white/10 border-white/20">
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">{completionPercentage}%</div>
+              <div className="text-gray-300">Completion</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/10 border-white/20">
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">{currentTasks.length}</div>
+              <div className="text-gray-300">Total Tasks</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/10 border-white/20">
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">
+                {totalEstimatedTime.toFixed(1)}h
+              </div>
+              <div className="text-gray-300">Estimated Time</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/10 border-white/20">
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">
+                {totalActualTime.toFixed(1)}h
+              </div>
+              <div className="text-gray-300">Time Spent</div>
+            </CardContent>
+          </Card>
+        </div>
 
-    const formatTime = (input) => {
-        if (!input || input < 0) return '00:00:00';
-
-        // Handle both seconds and milliseconds
-        const totalSeconds = input > 1000000 ? Math.floor(input / 1000) : Math.floor(input);
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    };
-
-    const getTaskStatusColor = (status) => {
-        switch (status) {
-            case 'completed': return 'bg-green-500/20 text-green-400 border-green-500/30';
-            case 'in-progress': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-            case 'pending': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-        }
-    };
-
-    const getPriorityColor = (priority) => {
-        switch (priority) {
-            case 'high': return 'bg-red-500/20 text-red-400 border-red-500/30';
-            case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            case 'low': return 'bg-green-500/20 text-green-400 border-green-500/30';
-            default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
-        }
-    };
-
-
-
-    return (
-        <div className="min-h-screen bg-[#111111] text-white learning-dashboard">
-            <div className="w-full">
-                <div className="container mx-auto px-4 py-8 max-w-7xl">
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4 font-poppins">
-                            AI Learning Dashboard
-                        </h1>
-                        <p className="text-lg mb-6 text-indigo-700 dark:text-gray-300">
-                            Track your progress with AI-powered insights and personalized recommendations
-                        </p>
-                        {learningData && (
-                            <div className="bg-gradient-to-r from-purple-500/20 to-cyan-500/20 rounded-xl p-4 border border-purple-400/30 inline-block">
-                                <div className="text-white font-semibold">
-                                    Current Learning Path: {learningData.goalData?.learningPath || 'AI Personalized'}
-                                </div>
-                                <div className="text-indigo-700 text-sm dark:text-gray-300">
-                                    Phase {learningData.currentPhase} • Day {learningData.dayNumber}
-                                </div>
-                            </div>
-                        )}
+        {/* Learning Roadmap Progress */}
+        {roadmap && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-6">Learning Roadmap</h2>
+            <div className="space-y-4">
+              {roadmap.phases?.map((phase, index) => (
+                <Card key={phase.phase} className="bg-white/10 border-white/20">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-bold ${
+                            learningData?.currentPhase > phase.phase
+                              ? "bg-green-500 text-white"
+                              : learningData?.currentPhase === phase.phase
+                              ? "bg-blue-500 text-white"
+                              : "bg-gray-600 text-gray-300"
+                          }`}
+                        >
+                          {learningData?.currentPhase > phase.phase
+                            ? "✓"
+                            : phase.phase}
+                        </div>
+                        <div>
+                          <h3 className="text-white font-bold text-xl">
+                            {phase.title}
+                          </h3>
+                          <p className="text-gray-300">
+                            Phase {phase.phase} • {phase.duration} weeks
+                          </p>
+                        </div>
+                      </div>
+                      {learningData?.currentPhase === phase.phase && (
+                        <span className="bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full text-sm">
+                          Current Phase
+                        </span>
+                      )}
                     </div>
 
-                    {/* Goal Management Section */}
-                    <Card className="!bg-[#181D24] backdrop-blur-md border border-gray-700 rounded-3xl shadow-2xl mb-8">
-                        <CardContent className="p-6">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h3 className="text-white font-bold text-xl mb-2">Goal Progress</h3>
-                                    <p className="text-gray-300 text-sm">
-                                        Phase {goalProgress.currentPhase} of {goalProgress.totalPhases} • {goalProgress.progress}% Complete
-                                    </p>
-                                    <div className="w-full bg-gray-700 rounded-full h-2 mt-3">
-                                        <div
-                                            className="bg-gradient-to-r from-orange-400 to-red-400 h-2 rounded-full transition-all duration-300"
-                                            style={{ width: `${goalProgress.progress}%` }}
-                                        ></div>
-                                    </div>
-                                </div>
-                                <div className="flex gap-3">
-                                    {goalProgress.isCompleted && (
-                                        <Button
-                                            onClick={handleCompleteGoal}
-                                            className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-xl transition-all duration-300 font-semibold"
-                                        >
-                                            🎉 Complete Goal
-                                        </Button>
-                                    )}
-                                    <Button
-                                        onClick={handleResetGoal}
-                                        className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-400 hover:to-pink-400 text-white rounded-xl transition-all duration-300 font-semibold"
-                                    >
-                                        🔄 Reset Goal
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* Progress Overview */}
-                    {analytics && (
-                        <Card className="!bg-[#181D24] backdrop-blur-md border border-gray-700 rounded-3xl shadow-2xl mb-8">
-                            <CardContent className="p-8">
-                                <h3 className="text-white font-bold text-2xl mb-6">Your AI-Powered Progress Overview</h3>
-
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                                    <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 p-6 rounded-xl border border-blue-400/30">
-                                        <div className="text-blue-400 font-semibold text-sm mb-2">Tasks Completed</div>
-                                        <div className="text-indigo-900 text-3xl font-bold dark:text-white">{analytics.totalTasksCompleted || 0}</div>
-                                        <div className="text-indigo-700 text-xs dark:text-blue-300">AI-generated tasks</div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-6 rounded-xl border border-green-400/30">
-                                        <div className="text-green-400 font-semibold text-sm mb-2">Efficiency Score</div>
-                                        <div className="text-indigo-900 text-3xl font-bold dark:text-white">{Math.round((analytics.averageEfficiency || 0) * 100)}%</div>
-                                        <div className="text-indigo-700 text-xs dark:text-green-300">AI-calculated performance</div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 p-6 rounded-xl border border-purple-400/30">
-                                        <div className="text-purple-400 font-semibold text-sm mb-2">Consistency Rate</div>
-                                        <div className="text-indigo-900 text-3xl font-bold dark:text-white">{Math.round((analytics.consistencyRate || 0) * 25)}%</div>
-                                        <div className="text-indigo-700 text-xs dark:text-purple-300">Daily completion rate</div>
-                                    </div>
-
-                                    <div className="bg-gradient-to-r from-orange-500/20 to-red-500/20 p-6 rounded-xl border border-orange-400/30">
-                                        <div className="text-orange-400 font-semibold text-sm mb-2">Total Time</div>
-                                        <div className="text-indigo-900 text-3xl font-bold dark:text-white">{(analytics.timeSpentTotal || 0).toFixed(1)}h</div>
-                                        <div className="text-indigo-700 text-xs dark:text-orange-300">Learning time tracked</div>
-                                    </div>
-                                </div>
-
-                                {/* AI Insights */}
-                                {analytics.strongAreas && analytics.strongAreas.length > 0 && (
-                                    <div className="mb-6">
-                                        <h4 className="text-indigo-700 font-semibold text-lg mb-3 dark:text-white">🏆 AI-Identified Strong Areas</h4>
-                                        <div className="flex flex-wrap gap-3">
-                                            {analytics.strongAreas.map((area, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="px-4 py-2 bg-green-500/20 text-green-400 rounded-full text-sm border border-green-400/30"
-                                                >
-                                                    {area.category} ({Math.round((area.averageEfficiency || 0) * 100)}% efficiency)
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-
-                                {analytics.improvementAreas && analytics.improvementAreas.length > 0 && (
-                                    <div>
-                                        <h4 className="text-indigo-700 font-semibold text-lg mb-3 dark:text-white">📈 AI-Suggested Improvement Areas</h4>
-                                        <div className="flex flex-wrap gap-3">
-                                            {analytics.improvementAreas.map((area, index) => (
-                                                <span
-                                                    key={index}
-                                                    className="px-4 py-2 bg-yellow-500/20 text-yellow-400 rounded-full text-sm border border-yellow-400/30"
-                                                >
-                                                    {area.category} ({Math.round((area.averageEfficiency || 0) * 100)}% efficiency)
-                                                </span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    )}
-
-                    {/* Today's AI-Generated Tasks */}
-                    <Card className="!bg-[#181D24] backdrop-blur-md border border-gray-700 rounded-3xl shadow-2xl mb-8">
-                        <CardContent className="p-8">
-                            <div className="flex items-center justify-between mb-6">
-                                <h3 className="text-white font-bold text-2xl">Today's AI-Generated Tasks</h3>
-                                <Button
-                                    onClick={generateNewTasks}
-                                    className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-400 hover:to-pink-400 text-white rounded-xl transition-all duration-300 font-semibold"
-                                >
-                                    🤖 Generate New AI Tasks
-                                </Button>
-                            </div>
-
-                            <div className="space-y-6">
-                                {currentTasks.map((task) => {
-                                    const timer = taskTimers[task.id];
-                                    const isTimerRunning = timer?.isRunning || false;
-                                    const elapsedTime = timer?.elapsedTime || 0;
-
-                                    return (
-                                        <div
-                                            key={task.id}
-                                            className="p-6 bg-gray-800/50 rounded-xl border border-gray-600 hover:border-gray-500 transition-all duration-300 learning-task-card"
-                                        >
-                                            <div className="flex items-start justify-between mb-4">
-                                                <div className="flex-1">
-                                                    <h4 className="text-white font-semibold text-xl mb-2">{task.title}</h4>
-                                                    <p className="text-gray-300 mb-4">{task.description}</p>
-
-                                                    <div className="flex items-center gap-4 mb-4">
-                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getTaskStatusColor(task.status || 'pending')}`}>
-                                                            {task.status || 'pending'}
-                                                        </span>
-                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(task.priority)}`}>
-                                                            {task.priority} priority
-                                                        </span>
-                                                        <span className="text-gray-400 text-sm">
-                                                            ⏱️ {task.estimatedTime}h estimated
-                                                        </span>
-                                                        <span className="text-gray-400 text-sm">
-                                                            📂 {task.category}
-                                                        </span>
-                                                        <span className="text-cyan-400 text-sm">
-                                                            🤖 AI-Generated
-                                                        </span>
-                                                    </div>
-
-                                                    {task.topics && (
-                                                        <div className="flex flex-wrap gap-2 mb-4">
-                                                            {task.topics.map((topic, index) => (
-                                                                <span
-                                                                    key={index}
-                                                                    className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs border border-blue-400/30"
-                                                                >
-                                                                    {topic}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-
-
-                                            </div>
-
-                                            {/* Task Controls */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between flex-wrap gap-4">
-                                                    <div className="flex items-center gap-4 flex-wrap">
-                                                        {(!task.status || task.status === 'pending') && !timer?.startTime && (
-                                                            <Button
-                                                                onClick={() => handleStartTask(task.id)}
-                                                                className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white rounded-xl transition-all duration-300 font-semibold"
-                                                            >
-                                                                ▶️ Start Task
-                                                            </Button>
-                                                        )}
-
-                                                        {timer?.startTime && task.status !== 'completed' && (
-                                                            <TaskSubmitButton
-                                                                task={{
-                                                                    id: task.databaseId || task.id,
-                                                                    status: task.status,
-                                                                    submissionFile: task.submissionFile
-                                                                }}
-                                                                className="px-6 py-3 rounded-xl transition-all duration-300 font-semibold"
-                                                                onSubmissionStart={() => {}}
-                                                                onSubmissionComplete={async () => {
-                                                                    try {
-                                                                        await handleAITaskSubmission(task, {
-                                                                            submissionType: 'completed',
-                                                                            submissionFile: 'submitted',
-                                                                            actualTime: elapsedTime / 1000 / 3600,
-                                                                            completionTime: new Date().toISOString(),
-                                                                            submittedAt: new Date().toISOString()
-                                                                        });
-                                                                    } catch (error) {
-                                                                        console.error('AI task submission failed:', error);
-                                                                    }
-                                                                }}
-                                                                expandedTask={expandedSubmission}
-                                                                setExpandedTask={setExpandedSubmission}
-                                                                showSubmissionForm={true}
-                                                            />
-                                                        )}
-
-                                                        {task.status === 'completed' && (
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="flex items-center gap-2 px-4 py-2 bg-green-500/20 text-green-400 rounded-xl border border-green-500/30">
-                                                                    <span className="text-xl">✅</span>
-                                                                    <span className="font-semibold">Completed</span>
-                                                                </div>
-                                                                <TaskSubmitButton
-                                                                    task={{
-                                                                        id: task.databaseId || task.id,
-                                                                        status: task.status,
-                                                                        submissionFile: task.submissionFile
-                                                                    }}
-                                                                    className="px-6 py-3 rounded-xl transition-all duration-300 font-semibold"
-                                                                    onSubmissionStart={() => {}}
-                                                                    onSubmissionComplete={() => {}}
-                                                                    expandedTask={expandedSubmission}
-                                                                    setExpandedTask={setExpandedSubmission}
-                                                                    showSubmissionForm={false}
-                                                                />
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div className="flex items-center gap-4 text-sm text-gray-400">
-                                                        <span>🎯 Difficulty: {task.difficulty || 3}/5</span>
-                                                        <span>📊 Progress: {task.progress || 0}%</span>
-                                                        {task.actualTime && (
-                                                            <span>⏱️ Actual: {task.actualTime.toFixed(1)}h</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {/* AI Recommendations */}
-                    {recommendations && recommendations.length > 0 && (
-                        <Card className="!bg-[#181D24] backdrop-blur-md border border-gray-700 rounded-3xl shadow-2xl mb-8">
-                            <CardContent className="p-8">
-                                <h3 className="text-white font-bold text-2xl mb-6">🤖 AI-Powered Recommendations</h3>
-                                <div className="space-y-4">
-                                    {recommendations.map((rec, index) => (
-                                        <div
-                                            key={index}
-                                            className="p-6 bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-xl border border-indigo-400/30"
-                                        >
-                                            <div className="flex items-start gap-4">
-                                                <div className="text-2xl">{rec.icon || '💡'}</div>
-                                                <div className="flex-1">
-                                                    <h4 className="text-white font-semibold text-lg mb-2">{rec.title}</h4>
-                                                    <p className="text-gray-300 mb-3">{rec.description}</p>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-sm border border-indigo-400/30">
-                                                            {rec.category}
-                                                        </span>
-                                                        <span className="px-3 py-1 bg-purple-500/20 text-purple-400 rounded-full text-sm border border-purple-400/30">
-                                                            Priority: {rec.priority}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h4 className="text-white font-semibold mb-3">
+                          Topics Covered
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {phase.topics?.map((topic, topicIndex) => (
+                            <span
+                              key={topicIndex}
+                              className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-full text-sm border border-blue-400/30"
+                            >
+                              {topic}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <h4 className="text-white font-semibold mb-3">
+                          Key Projects
+                        </h4>
+                        <ul className="space-y-2">
+                          {phase.projects?.map((project, projectIndex) => (
+                            <li
+                              key={projectIndex}
+                              className="text-gray-300 flex items-center gap-2"
+                            >
+                              <span className="text-green-400">•</span>
+                              {project}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-            
+          </div>
+        )}
 
+        {/* Current Tasks */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Current Tasks</h2>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => (window.location.href = "/tasks")}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                View All Tasks
+              </Button>
+              <Button
+                onClick={handleCompleteGoal}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                Complete Goal
+              </Button>
+              <Button
+                onClick={handleResetGoal}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Reset Goal
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentTasks && currentTasks.length > 0 ? (
+              currentTasks.map((task) => (
+                <Card key={task.id} className="bg-white/10 border-white/20">
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <h3 className="font-semibold text-lg">
+                        {task.title}
+                        {task.isAIGenerated && (
+                          <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded">
+                            🤖 AI
+                          </span>
+                        )}
+                      </h3>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getTaskStatusColor(
+                          task.status
+                        )}`}
+                      >
+                        {task.status}
+                      </span>
+                    </div>
+
+                    <p className="text-gray-300 text-sm mb-4">
+                      {task.description}
+                    </p>
+
+                    <div className="flex justify-between items-center mb-4">
+                      <span className="text-sm text-gray-400">
+                        Est: {task.estimatedTime || 1}h
+                      </span>
+                      <span
+                        className={`px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(
+                          task.priority
+                        )}`}
+                      >
+                        {task.priority}
+                      </span>
+                    </div>
+
+                    {/* Timer Display */}
+                    {taskTimers[task.id] && (
+                      <div className="mb-4 p-3 bg-white/5 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-lg font-mono">
+                            {formatTime(taskTimers[task.id].elapsedTime)}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Time Spent
+                          </div>
+                        </div>
+                        <div className="flex justify-center gap-2 mt-2">
+                          {!taskTimers[task.id].isRunning ? (
+                            <Button
+                              onClick={() => handleStartTask(task.id)}
+                              className="bg-green-600 hover:bg-green-700 text-xs px-3 py-1"
+                            >
+                              Start
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => handlePauseResumeTask(task.id)}
+                              className="bg-yellow-600 hover:bg-yellow-700 text-xs px-3 py-1"
+                            >
+                              Pause
+                            </Button>
+                          )}
+                          <Button
+                            onClick={() => handleStopTask(task.id)}
+                            className="bg-red-600 hover:bg-red-700 text-xs px-3 py-1"
+                          >
+                            Stop
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Task Actions */}
+                    {task.status !== "completed" && (
+                      <TaskSubmitButton
+                        taskId={task.id}
+                        onSubmissionComplete={(submissionData) =>
+                          handleAITaskSubmission(task, submissionData)
+                        }
+                      />
+                    )}
+
+                    {/* AI Task Details */}
+                    {task.isAIGenerated && task.realWorldApplication && (
+                      <div className="mt-4 p-3 bg-purple-500/10 rounded-lg">
+                        <h4 className="font-medium text-purple-300 mb-2">
+                          🌍 Real-World Application
+                        </h4>
+                        <p className="text-sm text-gray-300">
+                          {task.realWorldApplication}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="col-span-full text-center py-12">
+                <div className="text-6xl mb-4">📚</div>
+                <h3 className="text-xl font-semibold mb-2">
+                  No tasks available
+                </h3>
+                <p className="text-gray-400 mb-4">
+                  Generate new tasks to start your learning journey
+                </p>
+                <Button
+                  onClick={generateNewTasks}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Generate Tasks
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
-    );
+
+        {/* Analytics */}
+        {analytics && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-6">Learning Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="bg-white/10 border-white/20">
+                <CardContent className="p-6">
+                  <div className="text-2xl font-bold">
+                    {analytics.totalTasksCompleted || 0}
+                  </div>
+                  <div className="text-gray-300">Tasks Completed</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white/10 border-white/20">
+                <CardContent className="p-6">
+                  <div className="text-2xl font-bold">
+                    {Math.round((analytics.averageEfficiency || 0) * 100)}%
+                  </div>
+                  <div className="text-gray-300">Efficiency</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white/10 border-white/20">
+                <CardContent className="p-6">
+                  <div className="text-2xl font-bold">
+                    {analytics.timeSpentTotal?.toFixed(1) || 0}h
+                  </div>
+                  <div className="text-gray-300">Total Time</div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
+        {/* Recommendations */}
+        {recommendations && recommendations.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-6">Recommendations</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {recommendations.map((rec, index) => (
+                <Card key={index} className="bg-white/10 border-white/20">
+                  <CardContent className="p-6">
+                    <h3 className="font-semibold mb-2">{rec.area}</h3>
+                    <p className="text-gray-300 text-sm mb-4">
+                      {rec.suggestion}
+                    </p>
+                    <div className="text-xs text-gray-400">
+                      Expected: {rec.expectedImprovement}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 };
 
-export default LearningDashboardScreen;
+// Helper functions
+const formatTime = (input) => {
+  if (typeof input === "number") {
+    const hours = Math.floor(input / 3600);
+    const minutes = Math.floor((input % 3600) / 60);
+    const seconds = input % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes
+      .toString()
+      .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+  }
+  return input;
+};
+
+const getTaskStatusColor = (status) => {
+  switch (status) {
+    case "completed":
+      return "bg-green-500/20 text-green-400 border-green-500/30";
+    case "in_progress":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case "pending":
+      return "bg-red-500/20 text-red-400 border-red-500/30";
+    default:
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  }
+};
+
+const getPriorityColor = (priority) => {
+  switch (priority) {
+    case "high":
+      return "bg-red-500/20 text-red-400 border-red-500/30";
+    case "medium":
+      return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+    case "low":
+      return "bg-green-500/20 text-green-400 border-green-500/30";
+    default:
+      return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+  }
+};

@@ -1,20 +1,26 @@
-import React, { useState, useEffect, useMemo, useRef, useLayoutEffect } from 'react';
-import { getDashboardData } from '../services/api.js';
-import { useTasks } from '../contexts/TasksContext.jsx';
-import SummaryCard from '../components/dashboard/SummaryCard.jsx';
-import { WeeklyBarChart } from '../components/dashboard/WeeklyBarChart.jsx';
-import WeeklyPieChart from '../components/dashboard/WeeklyPieChart.jsx';
-import { StatusHistoryChart } from '../components/dashboard/StatusHistoryChart.jsx';
-import { Link } from 'react-router-dom';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import AnimatedTitle from '../components/ui/AnimatedTitle.jsx';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useLayoutEffect,
+} from "react";
+import { getDashboardData } from "../services/api.js";
+import { useTasks } from "../contexts/TasksContext.jsx";
+import SummaryCard from "../components/dashboard/SummaryCard.jsx";
+import { WeeklyBarChart } from "../components/dashboard/WeeklyBarChart.jsx";
+import WeeklyPieChart from "../components/dashboard/WeeklyPieChart.jsx";
+import { StatusHistoryChart } from "../components/dashboard/StatusHistoryChart.jsx";
+import { Link } from "react-router-dom";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import AnimatedTitle from "../components/ui/AnimatedTitle.jsx";
 gsap.registerPlugin(ScrollTrigger);
 
 // Animated Title Components
 const StatusHistoryTitle = () => {
   return (
-    <AnimatedTitle 
+    <AnimatedTitle
       text="Status History"
       fontSize="48px"
       fontWeight="900"
@@ -25,7 +31,7 @@ const StatusHistoryTitle = () => {
 
 const YourStatisticsTitle = () => {
   return (
-    <AnimatedTitle 
+    <AnimatedTitle
       text="Your Statistics"
       fontSize="48px"
       fontWeight="900"
@@ -47,7 +53,7 @@ export default function DashboardPage() {
     window.scrollTo(0, 0);
     // Then smooth scroll to ensure it's at the top
     setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }, 50);
   }, []);
 
@@ -60,8 +66,8 @@ export default function DashboardPage() {
         setSummary(summary || null);
         setError(null);
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
-        setError('Failed to load dashboard data');
+        console.error("Failed to fetch dashboard data:", err);
+        setError("Failed to load dashboard data");
       } finally {
         setLoading(false);
       }
@@ -71,7 +77,7 @@ export default function DashboardPage() {
 
     // Listen for real-time task updates
     const handleTasksUpdated = async () => {
-      console.log('Dashboard: Tasks updated, refreshing dashboard data...');
+      console.log("Dashboard: Tasks updated, refreshing dashboard data...");
       try {
         // Refresh dashboard data when tasks are updated
         const { tasks, summary } = await getDashboardData();
@@ -79,27 +85,27 @@ export default function DashboardPage() {
         setSummary(summary || null);
         setError(null);
       } catch (err) {
-        console.error('Failed to refresh dashboard data:', err);
+        console.error("Failed to refresh dashboard data:", err);
       }
     };
 
-    window.addEventListener('tasksUpdated', handleTasksUpdated);
+    window.addEventListener("tasksUpdated", handleTasksUpdated);
 
     return () => {
-      window.removeEventListener('tasksUpdated', handleTasksUpdated);
+      window.removeEventListener("tasksUpdated", handleTasksUpdated);
     };
   }, []);
 
   const barChartData = useMemo(() => {
     if (!summary?.days || summary.days.length === 0) {
       return [
-        { day: 'Mon', goal: 0, completed: 0 },
-        { day: 'Tue', goal: 0, completed: 0 },
-        { day: 'Wed', goal: 0, completed: 0 },
-        { day: 'Thu', goal: 0, completed: 0 },
-        { day: 'Fri', goal: 0, completed: 0 },
-        { day: 'Sat', goal: 0, completed: 0 },
-        { day: 'Sun', goal: 0, completed: 0 },
+        { day: "Mon", goal: 0, completed: 0 },
+        { day: "Tue", goal: 0, completed: 0 },
+        { day: "Wed", goal: 0, completed: 0 },
+        { day: "Thu", goal: 0, completed: 0 },
+        { day: "Fri", goal: 0, completed: 0 },
+        { day: "Sat", goal: 0, completed: 0 },
+        { day: "Sun", goal: 0, completed: 0 },
       ];
     }
 
@@ -139,23 +145,29 @@ export default function DashboardPage() {
       }
 
       if (!dayDate) {
-        console.warn('Invalid date in summary data, skipping day:', d);
-        return { day: d.day || `Day ${idx + 1}`, goal: 100, completed: 0, goalCount: 0, completedCount: 0 };
+        console.warn("Invalid date in summary data, skipping day:", d);
+        return {
+          day: d.day || `Day ${idx + 1}`,
+          goal: 100,
+          completed: 0,
+          goalCount: 0,
+          completedCount: 0,
+        };
       }
       const chartDayUTC = dayDate.toISOString().slice(0, 10);
-      const tasksUpToDay = sortedTasks.filter(t => {
+      const tasksUpToDay = sortedTasks.filter((t) => {
         const createdAtDate = getDateValue(t.createdAt);
         return createdAtDate && createdAtDate <= dayDate;
       });
       // Tasks not completed as of this day (created before or on this day, and either not completed or completed after this day)
-      const uncompletedAsOfDay = tasksUpToDay.filter(t => {
-        if (!t.data?.status || t.data.status !== 'completed') return true;
+      const uncompletedAsOfDay = tasksUpToDay.filter((t) => {
+        if (!t.data?.status || t.data.status !== "completed") return true;
         const updatedAtUTC = getUTCDateString(t.updatedAt);
         return updatedAtUTC > chartDayUTC;
       });
       // Tasks completed on this day (root updatedAt is this day, UTC)
-      const completedToday = tasksUpToDay.filter(t => {
-        if (t.data?.status === 'completed' && t.updatedAt) {
+      const completedToday = tasksUpToDay.filter((t) => {
+        if (t.data?.status === "completed" && t.updatedAt) {
           const updatedAtUTC = getUTCDateString(t.updatedAt);
           return updatedAtUTC === chartDayUTC;
         }
@@ -166,9 +178,10 @@ export default function DashboardPage() {
       return {
         day: d.day,
         goal: 100, // always 100% visually
-        completed: goalCount > 0 ? Math.round((completedCount / goalCount) * 100) : 0,
+        completed:
+          goalCount > 0 ? Math.round((completedCount / goalCount) * 100) : 0,
         goalCount,
-        completedCount
+        completedCount,
       };
     });
   }, [summary, tasks]);
@@ -176,25 +189,35 @@ export default function DashboardPage() {
   const pieData = useMemo(() => {
     if (!tasks.length) {
       return {
-        labels: ['Completed', 'In Progress', 'Pending'],
-        datasets: [{
-          data: [0, 0, 0],
-          backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
-        }]
+        labels: ["Completed", "In Progress", "Pending"],
+        datasets: [
+          {
+            data: [0, 0, 0],
+            backgroundColor: ["#22c55e", "#f59e0b", "#ef4444"],
+          },
+        ],
       };
     }
 
     // Count tasks by their actual status with fallback to root level status
-    const completed = tasks.filter(t => (t.data?.status || t.status) === 'completed').length;
-    const inProgress = tasks.filter(t => (t.data?.status || t.status) === 'in-progress').length;
-    const pending = tasks.filter(t => (t.data?.status || t.status) === 'pending').length;
+    const completed = tasks.filter(
+      (t) => (t.data?.status || t.status) === "completed"
+    ).length;
+    const inProgress = tasks.filter(
+      (t) => (t.data?.status || t.status) === "in-progress"
+    ).length;
+    const pending = tasks.filter(
+      (t) => (t.data?.status || t.status) === "pending"
+    ).length;
 
     return {
-      labels: ['Completed', 'In Progress', 'Pending'],
-      datasets: [{
-        data: [completed, inProgress, pending],
-        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444'],
-      }]
+      labels: ["Completed", "In Progress", "Pending"],
+      datasets: [
+        {
+          data: [completed, inProgress, pending],
+          backgroundColor: ["#22c55e", "#f59e0b", "#ef4444"],
+        },
+      ],
     };
   }, [tasks]);
 
@@ -215,26 +238,31 @@ export default function DashboardPage() {
       const parseDate = (dateStr) => new Date(dateStr);
 
       // TASKS THAT WERE PENDING AT START OF DAY
-      const tasksPendingAtStartOfDay = allTasks.filter(task => {
+      const tasksPendingAtStartOfDay = allTasks.filter((task) => {
         const createdAt = parseDate(task.createdAt);
         const updatedAt = parseDate(task.updatedAt);
         const status = task.data?.status || task.status; // Fallback to root level status
 
         if (createdAt > endOfDay) return false;
-        if (status === 'completed' && updatedAt < startOfDay) return false;
+        if (status === "completed" && updatedAt < startOfDay) return false;
         return createdAt <= endOfDay;
       });
 
       // TASKS COMPLETED TODAY
-      const tasksCompletedToday = allTasks.filter(task => {
+      const tasksCompletedToday = allTasks.filter((task) => {
         const updatedAt = parseDate(task.updatedAt);
         const status = task.data?.status || task.status; // Fallback to root level status
-        return status === 'completed' && updatedAt >= startOfDay && updatedAt <= endOfDay;
+        return (
+          status === "completed" &&
+          updatedAt >= startOfDay &&
+          updatedAt <= endOfDay
+        );
       });
 
       const totalGoal = tasksPendingAtStartOfDay.length;
       const completedCount = tasksCompletedToday.length;
-      const completionPercent = totalGoal === 0 ? 0 : Math.round((completedCount / totalGoal) * 100);
+      const completionPercent =
+        totalGoal === 0 ? 0 : Math.round((completedCount / totalGoal) * 100);
 
       return {
         totalGoal,
@@ -251,26 +279,26 @@ export default function DashboardPage() {
       const progress = calculateDailyProgress(tasks, date);
 
       // Ensure the value is always a valid number
-      const validValue = typeof progress.completionPercent === 'number' && !isNaN(progress.completionPercent)
-        ? progress.completionPercent
-        : 0;
+      const validValue =
+        typeof progress.completionPercent === "number" &&
+        !isNaN(progress.completionPercent)
+          ? progress.completionPercent
+          : 0;
 
       data.push({
-        date: date.toISOString().split('T')[0],
-        value: Math.max(0, Math.min(100, validValue)) // Double-clamp to ensure valid range
+        date: date.toISOString().split("T")[0],
+        value: Math.max(0, Math.min(100, validValue)), // Double-clamp to ensure valid range
       });
     }
 
     return data;
   }, [tasks]);
 
-
-
   const upcomingTasks = useMemo(() => {
     if (!tasks.length) return [];
 
     return tasks
-      .filter(t => t.data?.status !== 'completed')
+      .filter((t) => t.data?.status !== "completed")
       .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
       .slice(0, 5);
   }, [tasks]);
@@ -283,7 +311,7 @@ export default function DashboardPage() {
   useLayoutEffect(() => {
     if (loading || !barSectionRef.current) return;
 
-    const bars = gsap.utils.toArray('.weekly-bar-card');
+    const bars = gsap.utils.toArray(".weekly-bar-card");
     if (bars.length === 0) return;
 
     gsap.set(bars, { opacity: 0, y: 50 });
@@ -293,18 +321,18 @@ export default function DashboardPage() {
         trigger: barSectionRef.current,
         pin: true,
         scrub: 2,
-        start: 'top',
-        end: 'bottom',
+        start: "top",
+        end: "bottom",
         anticipatePin: 1,
-      }
+      },
     });
 
-    bars.forEach(bar => {
+    bars.forEach((bar) => {
       tl.to(bar, {
         opacity: 1,
         y: 0,
         duration: 2,
-        ease: 'power2.inOut',
+        ease: "power2.inOut",
       });
     });
 
@@ -338,19 +366,22 @@ export default function DashboardPage() {
   };
 
   const getBestDay = (items) => {
-    if (!items || items.length === 0) return 'N/A';
-    return items.reduce((best, day) => (day.completed > best.completed ? day : best), items[0]).day;
+    if (!items || items.length === 0) return "N/A";
+    return items.reduce(
+      (best, day) => (day.completed > best.completed ? day : best),
+      items[0]
+    ).day;
   };
 
   // Helper to handle both string and {$date: ...} date formats
   function getDateValue(dateField) {
     if (!dateField) return null;
-    if (typeof dateField === 'string') {
+    if (typeof dateField === "string") {
       const d = new Date(dateField);
       if (!(d instanceof Date) || isNaN(d.getTime())) return null;
       return d;
     }
-    if (typeof dateField === 'object' && dateField.$date) {
+    if (typeof dateField === "object" && dateField.$date) {
       const d = new Date(dateField.$date);
       if (!(d instanceof Date) || isNaN(d.getTime())) return null;
       return d;
@@ -362,11 +393,11 @@ export default function DashboardPage() {
   function getUTCDateString(dateField) {
     try {
       const d = getDateValue(dateField);
-      if (!d || !(d instanceof Date) || isNaN(d.getTime())) return '';
+      if (!d || !(d instanceof Date) || isNaN(d.getTime())) return "";
       return d.toISOString().slice(0, 10);
     } catch (e) {
-      console.warn('Invalid date in getUTCDateString:', dateField, e);
-      return '';
+      console.warn("Invalid date in getUTCDateString:", dateField, e);
+      return "";
     }
   }
 
@@ -377,22 +408,49 @@ export default function DashboardPage() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <SummaryCard title="Total Tasks" value={summary?.totalTasks || 0} icon="📋" color="bg-cyan" />
-          <SummaryCard title="Completed" value={summary?.completedTasks || 0} icon="✅" color="bg-mint" />
-          <SummaryCard title="In Progress" value={summary?.inProgressTasks || 0} icon="🔄" color="bg-solar" />
-          <SummaryCard title="Productivity" value={`${summary?.completionRate || 0}%`} icon="📊" color="bg-coral" />
+          <SummaryCard
+            title="Total Tasks"
+            value={summary?.totalTasks || 0}
+            icon="📋"
+            color="bg-cyan"
+          />
+          <SummaryCard
+            title="Completed"
+            value={summary?.completedTasks || 0}
+            icon="✅"
+            color="bg-mint"
+          />
+          <SummaryCard
+            title="In Progress"
+            value={summary?.inProgressTasks || 0}
+            icon="🔄"
+            color="bg-solar"
+          />
+          <SummaryCard
+            title="Productivity"
+            value={`${summary?.completionRate || 0}%`}
+            icon="📊"
+            color="bg-coral"
+          />
         </div>
 
         {/* Weekly Bar Chart Section - Now First */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
           {/* IMPORTANT: This is the section that gets pinned and animated. */}
-          <div ref={barSectionRef} className="lg:col-span-3 bg-deepTeal p-6 rounded-lg min-h-[400px] h-[32rem]">
+          <div
+            ref={barSectionRef}
+            className="lg:col-span-3 bg-deepTeal p-6 rounded-lg min-h-[400px] h-[32rem]"
+          >
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
               {/* Header section is fine */}
             </div>
 
             <div className="flex-1 min-h-[400px]">
-              <WeeklyBarChart data={barChartData} barsGridRef={barsGridRef} allTasks={tasks} />
+              <WeeklyBarChart
+                data={barChartData}
+                barsGridRef={barsGridRef}
+                allTasks={tasks}
+              />
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
@@ -404,15 +462,29 @@ export default function DashboardPage() {
         {/* Status History and Statistics Grid - Now Below */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Status History Chart */}
-          <div className="rounded-2xl p-6 border border-sky-200/50 dark:border-gray-700/50" style={{ backgroundColor: '#181D24' }}>
+          <div
+            className="rounded-2xl p-6 border border-sky-200/50 dark:border-gray-700/50"
+            style={{ backgroundColor: "#181D24" }}
+          >
             <StatusHistoryTitle />
             {(() => {
               try {
-                return <StatusHistoryChart data={statusHistoryData.length > 0 ? statusHistoryData : [
-                  { date: new Date().toISOString().split('T')[0], value: 0 }
-                ]} />;
+                return (
+                  <StatusHistoryChart
+                    data={
+                      statusHistoryData.length > 0
+                        ? statusHistoryData
+                        : [
+                            {
+                              date: new Date().toISOString().split("T")[0],
+                              value: 0,
+                            },
+                          ]
+                    }
+                  />
+                );
               } catch (error) {
-                console.error('Error rendering StatusHistoryChart:', error);
+                console.error("Error rendering StatusHistoryChart:", error);
                 return (
                   <div className="flex items-center justify-center h-[400px] text-gray-400">
                     <div className="text-center">
@@ -426,14 +498,17 @@ export default function DashboardPage() {
           </div>
 
           {/* Your Statistics (Pie Chart) */}
-          <div className="rounded-2xl p-6 border border-sky-200/50 dark:border-gray-700/50" style={{ backgroundColor: '#181D24' }}>
+          <div
+            className="rounded-2xl p-6 border border-sky-200/50 dark:border-gray-700/50"
+            style={{ backgroundColor: "#181D24" }}
+          >
             <YourStatisticsTitle />
             <div className="h-[400px]">
               {(() => {
                 try {
                   return <WeeklyPieChart data={pieData} />;
                 } catch (error) {
-                  console.error('Error rendering WeeklyPieChart:', error);
+                  console.error("Error rendering WeeklyPieChart:", error);
                   return (
                     <div className="flex items-center justify-center h-full text-gray-400">
                       <div className="text-center">
@@ -449,7 +524,6 @@ export default function DashboardPage() {
         </div>
 
         {/* Upcoming Tasks Section is fine */}
-
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import RevealHero from '../components/home/RevealHero';
-import FeaturesSection from '../components/home/FeaturesSection';
-import AchieversSection from '../components/home/AchieversSection';
-import TestimonialsSection from '../components/home/TestimonialsSection';
-import CTASection from '../components/home/CTASection';
+import React from "react";
+import { motion } from "framer-motion";
+import RevealHero from "../components/home/RevealHero";
+import FeaturesSection from "../components/home/FeaturesSection";
+import AchieversSection from "../components/home/AchieversSection";
+import TestimonialsSection from "../components/home/TestimonialsSection";
+import CTASection from "../components/home/CTASection";
 
 const HomePage = () => {
   return (
@@ -25,4 +25,4 @@ const HomePage = () => {
   );
 };
 
-export default HomePage; 
+export default HomePage;
