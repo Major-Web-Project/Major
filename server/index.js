@@ -26,17 +26,19 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security and CORS Middleware
-app.use(helmet({
-  crossOriginEmbedderPolicy: false, // Allow file downloads
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false, // Allow file downloads
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+      },
     },
-  },
-}));
+  })
+);
 
 // Environment-specific CORS configuration
 const corsOptions = {
@@ -44,11 +46,11 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === "production") {
   // Production CORS - only allow specific domains
   corsOptions.origin = [
     process.env.CLIENT_URL,
-    process.env.PRODUCTION_DOMAIN
+    process.env.PRODUCTION_DOMAIN,
   ].filter(Boolean); // Remove undefined values
 } else {
   // Development CORS - allow localhost variants
@@ -56,7 +58,7 @@ if (process.env.NODE_ENV === 'production') {
     process.env.CLIENT_URL || "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
-    "http://localhost:3000" // React default
+    "http://localhost:3000", // React default
   ];
 }
 
@@ -103,30 +105,34 @@ app.use(errorHandler);
 const startServer = async () => {
   try {
     console.log("Starting server...");
-    console.log("Connecting to MongoDB:", process.env.MONGODB_URI ? "URI configured" : "URI missing");
-    
+    console.log(
+      "Connecting to MongoDB:",
+      process.env.MONGODB_URI ? "URI configured" : "URI missing"
+    );
+
     await mongoose.connect(process.env.MONGODB_URI);
     console.log("✅ MongoDB connected successfully.");
-    
+
     // Start the task scheduler for midnight assignments
     console.log("Starting task scheduler...");
     startTaskScheduler();
     console.log("✅ Task scheduler started.");
-    
+
     const server = app.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`🌐 Server accessible at: http://localhost:${PORT}`);
-      console.log(`📊 API endpoints available at: http://localhost:${PORT}/api`);
+      console.log(
+        `📊 API endpoints available at: http://localhost:${PORT}/api`
+      );
     });
 
     // Handle server errors
-    server.on('error', (error) => {
+    server.on("error", (error) => {
       console.error("❌ Server error:", error.message);
-      if (error.code === 'EADDRINUSE') {
+      if (error.code === "EADDRINUSE") {
         console.error(`Port ${PORT} is already in use. Try a different port.`);
       }
     });
-
   } catch (error) {
     console.error("❌ Server startup failed:", error.message);
     console.error("Full error:", error);
