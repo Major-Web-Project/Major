@@ -130,6 +130,7 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
               });
               
               const totalTasks = filteredTasks.length;
+              const carryForwardTasks = filteredTasks.filter(t => t.wasEverCarried);
               const completedTasks = filteredTasks.filter(
                 (t) => t.status === "completed"
               ).length;
@@ -151,6 +152,7 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
                     ? Math.round((completedTasks / totalTasks) * 100)
                     : 0,
                 tasks: filteredTasks,
+                carryForwardCount: carryForwardTasks.reduce((sum,t)=> sum + (t.carriedCount ? 1 : 1),0),
               };
             }
           } catch (err) {
@@ -280,7 +282,8 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
       const isToday = new Date().toDateString() === date.toDateString();
       const isFuture = isFutureDate(date);
       const completionRate = dayStats.productivityScore;
-      const hasData = dayStats.totalTasks > 0;
+  const hasData = dayStats.totalTasks > 0;
+  const hasCarryForward = (dayStats.carryForwardCount || 0) > 0;
 
       days.push(
         <div
@@ -350,6 +353,11 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
               >
                 {completionRate}%
               </div>
+              {hasCarryForward && (
+                <div className="absolute bottom-1 right-1 bg-blue-600/80 text-[10px] px-1.5 py-0.5 rounded-md text-white font-semibold flex items-center gap-1">
+                  🔁 {dayStats.carryForwardCount}
+                </div>
+              )}
             </div>
           )}
 

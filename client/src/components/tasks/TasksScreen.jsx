@@ -58,7 +58,8 @@ export const TaskReportSection = ({ tasks }) => {
     const inProgress = tasks.filter((task) => task.status === "in_progress");
     const pending = tasks.filter((task) => task.status === "pending");
     const overdue = tasks.filter((task) => task.status === "overdue");
-    const aiGenerated = tasks.filter((task) => task.isAIGenerated);
+  const aiGenerated = tasks.filter((task) => task.isAIGenerated);
+  const carried = tasks.filter((task) => task.wasEverCarried);
 
     const totalEstimatedTime = tasks.reduce(
       (sum, task) => sum + (task.estimatedTime || 0),
@@ -114,7 +115,8 @@ export const TaskReportSection = ({ tasks }) => {
       inProgress: inProgress.length,
       pending: pending.length,
       overdue: overdue.length,
-      aiGenerated: aiGenerated.length,
+  aiGenerated: aiGenerated.length,
+  carried: carried.length,
       totalEstimatedTime: Math.round(totalEstimatedTime * 10) / 10,
       totalActualTime: Math.round(totalActualTime * 10) / 10,
       averageEfficiency: Math.round(averageEfficiency),
@@ -197,6 +199,16 @@ export const TaskReportSection = ({ tasks }) => {
             {Math.round((stats.aiGenerated / Math.max(stats.total, 1)) * 100)}%
             of total
           </div>
+        </div>
+        <div className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 p-6 rounded-2xl border border-blue-400/30 hover:scale-105 transition-transform duration-300">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-3xl">🔁</span>
+            <div className="text-blue-400 font-bold text-lg">Carry Forward</div>
+          </div>
+          <div className="text-indigo-700 text-3xl font-bold mb-2 dark:text-white">
+            {stats.carryForward}
+          </div>
+          <div className="text-blue-300 text-sm">Tasks carried forward today</div>
         </div>
         <div className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 p-6 rounded-2xl border border-green-400/30 hover:scale-105 transition-transform duration-300">
           <div className="flex items-center gap-3 mb-3">
@@ -333,17 +345,7 @@ export const TasksScreen = ({
   return (
     <div className="bg-[#111111] min-h-full">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Goal Title */}
-        {goalData && (
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-white mb-2">
-              {goalData.field}
-            </h1>
-            <p className="text-gray-400 text-sm">
-              {goalData.timeline} months • Phase {learningData?.currentPhase || 1}
-            </p>
-          </div>
-        )}
+  {/* Goal Title removed (now in TasksPage header) */}
 
         {/* Main Vertical Layout */}
         <div className="flex flex-col gap-8">

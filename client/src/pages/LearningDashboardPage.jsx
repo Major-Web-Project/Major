@@ -5,7 +5,8 @@ import { useAuth } from "../hooks/useAuth.js";
 import { useGoalStore } from "../store/goalStore.js";
 import { useAppStore } from "../store/appStore.js";
 import { useDashboardStore } from "../store/dashboardStore.js";
-import { aiAssistant } from "../services/aiLearningService";
+import { useTasks } from "../contexts/TasksContext";
+import { apiService } from "../services/api.js";
 import GoalSelector from "../components/ui/GoalSelector.jsx";
 import NoGoalsGuard from "../components/ui/NoGoalsGuard.jsx";
 
@@ -15,11 +16,12 @@ const LearningDashboardPage = () => {
   const { activeGoalId, getActiveGoal, hasGoals, initializeGoals, setActiveGoal, goals } = useGoalStore();
   const { setCurrentPage } = useAppStore();
   const { fetchLearningStats } = useDashboardStore();
+  const { refreshAITasks, taskStatistics } = useTasks();
   
   const [learningData, setLearningData] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
-  const [aiTasksData, setAiTasksData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [aiTasks, setAiTasks] = useState([]);
 
   const activeGoal = getActiveGoal();
 
@@ -33,13 +35,15 @@ const LearningDashboardPage = () => {
     const loadLearningData = async () => {
       try {
         setLoading(true);
-        // Ensure goals are loaded
+        
+        // Only proceed if we have goals (NoGoalsGuard handles the no-goals case)
         if (!hasGoals()) {
-          await initializeGoals();
+          setLoading(false);
+          return;
         }
 
         // Auto-select most recent goal if none selected
-        if (!activeGoalId && hasGoals() && goals.length > 0) {
+        if (!activeGoalId && goals.length > 0) {
           const mostRecentGoal = goals.reduce((latest, current) => {
             const latestDate = new Date(latest.createdAt || latest._id);
             const currentDate = new Date(current.createdAt || current._id);
@@ -47,43 +51,66 @@ const LearningDashboardPage = () => {
           });
           if (mostRecentGoal && mostRecentGoal._id) {
             setActiveGoal(mostRecentGoal._id);
+            setLoading(false);
+            return;
           }
-          setLoading(false);
-          return;
         }
 
         if (!hasGoals() || !activeGoal) {
-          // If no goals, the NoGoalsGuard will handle redirection
+          // If no goals, let NoGoalsGuard handle it
           setLoading(false);
           return;
         }
 
-        // Try to load data from the active goal first
-        if (activeGoal.roadmap) {
-          setRoadmap(activeGoal.roadmap);
-          // Create learning data from goal
-          const goalLearningData = {
-            goalData: activeGoal,
-            roadmap: activeGoal.roadmap,
-            currentPhase: activeGoal.currentPhase || 1,
-            isGoalActive: true,
-            goalStartDate: activeGoal.createdAt || new Date().toISOString(),
-          };
-          setLearningData(goalLearningData);
-          // Load AI tasks for the active goal
+        console.log("[LearningDashboard] Loading data for goal:", activeGoal._id);
+
+        // Load AI tasks and statistics for the active goal
+        let loadedAiTasks = [];
+        if (activeGoal._id) {
           try {
-            const aiTasks = await aiAssistant.getAllTasks(activeGoal._id);
-            console.log("Loaded AI tasks for dashboard:", aiTasks);
-            setAiTasksData(aiTasks || []);
+            console.log("[LearningDashboard] Loading AI tasks for goal:", activeGoal._id);
+            const aiTaskResult = await refreshAITasks(activeGoal._id);
+            loadedAiTasks = aiTaskResult.tasks || [];
+            setAiTasks(loadedAiTasks);
+            
+            // If no AI tasks found, try to create them from stored output
+            if (loadedAiTasks.length === 0 && activeGoal.taskPromptOutput) {
+              console.log("[LearningDashboard] No AI tasks found, creating from stored output...");
+              try {
+                await apiService.createTasksFromAIOutput(activeGoal._id);
+                // Retry loading tasks after creation
+                const retryResult = await refreshAITasks(activeGoal._id);
+                loadedAiTasks = retryResult.tasks || [];
+                setAiTasks(loadedAiTasks);
+              } catch (createError) {
+                console.warn("[LearningDashboard] Could not create tasks from AI output:", createError);
+              }
+            }
           } catch (aiError) {
-            console.warn("Could not load AI tasks for dashboard:", aiError);
-            setAiTasksData([]);
+            console.warn("[LearningDashboard] Error loading AI tasks:", aiError);
+            setAiTasks([]);
+            loadedAiTasks = [];
           }
-          setLoading(false);
-          return;
         }
 
+        // Always create learning data, even if no roadmap exists
+        const goalLearningData = {
+          goalData: activeGoal,
+          roadmap: activeGoal.roadmap || null,
+          currentPhase: activeGoal.currentPhase || 1,
+          isGoalActive: true,
+          goalStartDate: activeGoal.createdAt || new Date().toISOString(),
+          // Include AI task statistics
+          taskStatistics: taskStatistics,
+          aiTasks: loadedAiTasks,
+        };
+        
+        setLearningData(goalLearningData);
+        setRoadmap(activeGoal.roadmap || null);
+        
+        console.log("[LearningDashboard] Learning data loaded successfully");
         setLoading(false);
+
       } catch (error) {
         console.error("Error loading learning data:", error);
         setLoading(false);
@@ -105,45 +132,87 @@ const LearningDashboardPage = () => {
       }
     };
 
-    // Listen for task updates from other pages
-    const handleTasksUpdated = async (event) => {
-      console.log("Learning Dashboard: Tasks updated from other pages", event.detail);
+    // Listen for AI task updates
+    const handleAITasksUpdated = async (event) => {
+      console.log("Learning: AI tasks updated, refreshing data...");
+      const { tasks, statistics } = event.detail;
+      setAiTasks(tasks || []);
       
-      // Refresh AI tasks when tasks are updated elsewhere
-      if (activeGoal && activeGoal._id) {
-        try {
-          const aiTasks = await aiAssistant.getAllTasks(activeGoal._id);
-          setAiTasksData(aiTasks || []);
-        } catch (error) {
-          console.error("Error refreshing AI tasks after external update:", error);
-        }
+      // Update learning data with new statistics
+      if (learningData) {
+        setLearningData({
+          ...learningData,
+          taskStatistics: statistics,
+          aiTasks: tasks,
+        });
       }
     };
 
     window.addEventListener("goalChanged", handleGoalChanged);
-    window.addEventListener("tasksUpdated", handleTasksUpdated);
-
+    window.addEventListener("aiTasksUpdated", handleAITasksUpdated);
+    
     return () => {
       window.removeEventListener("goalChanged", handleGoalChanged);
-      window.removeEventListener("tasksUpdated", handleTasksUpdated);
+      window.removeEventListener("aiTasksUpdated", handleAITasksUpdated);
     };
-  }, [navigate, hasGoals, activeGoal, fetchLearningStats, initializeGoals, setActiveGoal, goals, activeGoalId]);
+  }, [navigate, hasGoals, activeGoal, fetchLearningStats, setActiveGoal, goals, activeGoalId, refreshAITasks]);
 
-  const handleTaskComplete = async (progressEntry) => {
-    console.log("Task completed:", progressEntry);
-    
-    // Refresh AI tasks after completion to sync with database
-    if (activeGoal && activeGoal._id) {
-      try {
-        // Add a small delay to ensure backend has processed the submission
-        setTimeout(async () => {
-          const aiTasks = await aiAssistant.getAllTasks(activeGoal._id);
-          console.log("Refreshed AI tasks after completion:", aiTasks);
-          setAiTasksData(aiTasks || []);
-        }, 1000);
-      } catch (error) {
-        console.error("Error reloading AI tasks after completion:", error);
+    const handleTaskComplete = async (taskId) => {
+    try {
+      console.log("[LearningDashboard] Completing task:", taskId);
+      
+      // Handle AI task completion
+      const isAITask = aiTasks.some(task => task._id === taskId);
+      
+      if (isAITask) {
+        // Find the AI task
+        const aiTask = aiTasks.find(task => task._id === taskId);
+        if (aiTask && activeGoal) {
+          // Update task completion status in the backend
+          await apiService.completeTask(taskId);
+          
+          // Add to completed tasks in goal
+          const updatedGoal = {
+            ...activeGoal,
+            completedTaskIds: [...(activeGoal.completedTaskIds || []), taskId]
+          };
+          
+          // Update goal in context
+          await setActiveGoal(updatedGoal._id, updatedGoal);
+          
+          // Refresh AI tasks and statistics
+          const refreshResult = await refreshAITasks(activeGoal._id);
+          setAiTasks(refreshResult.tasks || []);
+          
+          // Update learning data with new statistics
+          if (learningData) {
+            setLearningData({
+              ...learningData,
+              taskStatistics: taskStatistics,
+              aiTasks: refreshResult.tasks || [],
+            });
+          }
+          
+          // Dispatch event for other components
+          window.dispatchEvent(new CustomEvent("aiTasksUpdated", { 
+            detail: { 
+              tasks: refreshResult.tasks || [],
+              statistics: taskStatistics
+            } 
+          }));
+          
+          console.log("[LearningDashboard] AI task completed successfully");
+        }
+      } else {
+        // Handle regular task completion (legacy tasks)
+        console.log("[LearningDashboard] Completing regular task:", taskId);
+        // Add existing regular task completion logic here if needed
       }
+      
+    } catch (error) {
+      console.error("Error completing task:", error);
+      // Show error message to user
+      alert("Failed to complete task. Please try again.");
     }
   };
 
@@ -159,7 +228,9 @@ const LearningDashboardPage = () => {
     );
   };
 
-  if (loading || !learningData || !roadmap) {
+
+  // Only show loading if we have goals and are loading data
+  if (hasGoals() && (loading || !learningData)) {
     return (
       <NoGoalsGuard>
         <div className="min-h-screen bg-[#111111] flex items-center justify-center">
@@ -183,26 +254,37 @@ const LearningDashboardPage = () => {
     );
   }
 
+  // Only show error if we have goals but failed to load learning data after loading is complete
+  if (hasGoals() && !loading && !learningData) {
+    return (
+      <NoGoalsGuard>
+        <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+          <div className="text-white text-center">
+            <div className="text-xl mb-4">Error loading learning dashboard</div>
+            <div className="text-gray-400 mb-4">Please try again or refresh the page.</div>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary btn-md"
+            >
+              Retry
+            </button>
+          </div>
+        </div>
+      </NoGoalsGuard>
+    );
+  }
+
+  // Always wrap in NoGoalsGuard, let it handle no-goals UI
   return (
     <NoGoalsGuard>
       <div className="bg-[#111111] min-h-screen">
-        {/* Header with Goal Selector */}
-        <div className="p-4 border-b border-gray-800">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <h1 className="text-2xl font-bold text-white">
-                Learning Dashboard
-              </h1>
-              <GoalSelector />
-            </div>
-          </div>
-        </div>
-
-        {/* Learning Dashboard Screen */}
+        {/* Learning Dashboard Screen (header is inside) */}
         <LearningDashboardScreen
           learningData={learningData}
           roadmap={roadmap}
-          aiTasksData={aiTasksData}
+          selectedGoal={activeGoal}
+          taskStatistics={taskStatistics}
+          aiTasks={aiTasks}
           onTaskComplete={handleTaskComplete}
           onUpdateProgress={handleUpdateProgress}
         />

@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
+import GoalSelector from "../ui/GoalSelector.jsx";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
 import {
-  aiAssistant,
-  resetCurrentGoal,
   getGoalProgress,
 } from "../../services/aiLearningService";
 import { useTasks } from "../../contexts/TasksContext";
@@ -97,6 +96,39 @@ const calculateLearningVelocity = (tasks) => {
   });
 
   return recentCompletions.length;
+};
+
+// Helper function to calculate completed tasks for a specific phase
+const getCompletedTasksForPhase = (goal, phase) => {
+  if (!goal || !goal.completedTaskIds || !Array.isArray(goal.completedTaskIds)) return 0;
+  
+  const phaseEntries = goal.completedTaskIds.filter(entry => entry.phase === phase);
+  return phaseEntries.reduce((total, entry) => total + (entry.taskIds ? entry.taskIds.length : 0), 0);
+};
+
+// Helper function to calculate completed tasks for a specific topic in a phase
+const getCompletedTasksForTopic = (goal, phase, topic) => {
+  if (!goal || !goal.completedTaskIds || !Array.isArray(goal.completedTaskIds)) return 0;
+  
+  const topicEntry = goal.completedTaskIds.find(entry => entry.phase === phase && entry.topic === topic);
+  return topicEntry ? (topicEntry.taskIds ? topicEntry.taskIds.length : 0) : 0;
+};
+
+// Helper function to get total tasks for a phase (from tasks5D or currentTasks)
+const getTotalTasksForPhase = (tasks, phase) => {
+  if (!tasks || !Array.isArray(tasks)) return 0;
+  return tasks.filter(task => task.phase === phase).length;
+};
+
+// Helper function to get total tasks for a topic in a phase
+const getTotalTasksForTopic = (tasks, phase, topic) => {
+  if (!tasks || !Array.isArray(tasks)) return 0;
+  return tasks.filter(task => 
+    task.phase === phase && 
+    task.topics && 
+    Array.isArray(task.topics) && 
+    task.topics.includes(topic)
+  ).length;
 };
 
 const generateWeeklyGoals = (tasks, roadmap) => {
@@ -204,7 +236,7 @@ const generateLearningInsights = (tasks, roadmap, learningData) => {
   return insights.slice(0, 4); // Limit to 4 insights
 };
 
-const generateSkillProgression = (tasks, roadmap) => {
+const generateSkillProgression = (tasks, roadmap, taskStatistics) => {
   const skills = [];
 
   if (!roadmap || !roadmap.phases) {
@@ -237,11 +269,11 @@ const generateSkillProgression = (tasks, roadmap) => {
     ];
   }
   
-  // Generate skills based on roadmap phases
+  // Generate skills based on roadmap phases using AI task statistics
   roadmap.phases.forEach((phase, index) => {
-    const phaseTasks = tasks.filter(task => task.phase === phase.phase);
-    const completedPhaseTasks = phaseTasks.filter(task => task.status === 'completed');
-    const progress = phaseTasks.length > 0 ? Math.round((completedPhaseTasks.length / phaseTasks.length) * 100) : 0;
+    // Use the same function as the phase section to get accurate statistics
+    const phaseStats = getAITaskStatsForPhase(taskStatistics, phase.phase);
+    const progress = phaseStats.total > 0 ? Math.round((phaseStats.completed / phaseStats.total) * 100) : 0;
     
     let level = "Not Started";
     let color = "bg-gray-400";
@@ -265,20 +297,111 @@ const generateSkillProgression = (tasks, roadmap) => {
       level,
       progress,
       color,
-      tasksCompleted: completedPhaseTasks.length,
-      totalTasks: phaseTasks.length
+      tasksCompleted: phaseStats.completed,
+      totalTasks: phaseStats.total
     });
   });
   
   return skills.slice(0, 6); // Limit to 6 skills for better display
 };
 
+// Helper function to get AI task statistics for a specific phase
+const getAITaskStatsForPhase = (taskStatistics, phaseNumber) => {
+  if (!taskStatistics?.byPhase) {
+    return { completed: 0, total: 0 };
+  }
+  
+  // Always look up using string key for consistency
+  const phaseKey = String(phaseNumber);
+  const phaseStats = taskStatistics.byPhase[phaseKey];
+  
+  if (!phaseStats) {
+    // No stats found for this phase
+  }
+  
+  return phaseStats ? { completed: phaseStats.completed, total: phaseStats.total } : { completed: 0, total: 0 };
+};
+
+// NEW: Robust helper function to get topic-wise task statistics using actual database structure
+const getTopicTaskStats = (taskStatistics, phaseNumber, topicIndex) => {
+  // Validate inputs and check if we have task data
+  if (!taskStatistics?.allTasks || !Array.isArray(taskStatistics.allTasks)) {
+    return { completed: 0, total: 0, hasData: false };
+  }
+
+  // Ensure we have valid phase and topic identifiers
+  if (phaseNumber === undefined || phaseNumber === null || topicIndex === undefined || topicIndex === null) {
+    return { completed: 0, total: 0, hasData: false };
+  }
+
+  // CRITICAL FIX: Convert 1-based phase number to 0-based for database comparison
+  // Database stores aiMetadata.phase and aiMetadata.topic as 0-based indices
+  // But roadmap.phases use 1-based phase numbers (1, 2, 3...)
+  const dbPhaseIndex = Number(phaseNumber) - 1; // Convert 1-based to 0-based
+  const dbTopicIndex = Number(topicIndex); // topicIndex is already 0-based array index
+
+  // Filter tasks based on actual database structure
+  // Task model has: aiMetadata.phase (Number, 0-based) and aiMetadata.topic (Number, 0-based)
+  const topicTasks = taskStatistics.allTasks.filter(task => {
+    // Handle both direct properties and nested aiMetadata
+    const taskPhase = task.aiMetadata?.phase ?? task.phase;
+    const taskTopic = task.aiMetadata?.topic ?? task.topic;
+    
+    // Ensure type consistency - both should be numbers
+    const normalizedTaskPhase = Number(taskPhase);
+    const normalizedTaskTopic = Number(taskTopic);
+    
+    // Match both phase and topic using 0-based indices
+    const phaseMatch = normalizedTaskPhase === dbPhaseIndex;
+    const topicMatch = normalizedTaskTopic === dbTopicIndex;
+    
+    return phaseMatch && topicMatch;
+  });
+
+  // Count completed tasks
+  const completedTasks = topicTasks.filter(task => {
+    // Handle various completion status formats
+    const status = task.status?.toLowerCase?.() || '';
+    return status === 'completed';
+  });
+
+  return {
+    completed: completedTasks.length,
+    total: topicTasks.length,
+    hasData: topicTasks.length > 0,
+    // Additional debug info for troubleshooting
+    debug: {
+      phaseNumber: Number(phaseNumber),
+      topicIndex: Number(topicIndex),
+      dbPhaseIndex,
+      dbTopicIndex,
+      matchedTasks: topicTasks.length,
+      sampleTask: topicTasks[0] || null
+    }
+  };
+};
+
+// Helper function to get AI tasks for a specific phase from aiTasks array
+const getAITasksForPhase = (aiTasks, phaseNumber) => {
+  if (!aiTasks || !Array.isArray(aiTasks)) return [];
+  return aiTasks.filter(task => task.aiMetadata?.phase === phaseNumber);
+};
+
+// Helper function to get AI tasks for a specific topic from aiTasks array
+const getAITasksForTopic = (aiTasks, topicName) => {
+  if (!aiTasks || !Array.isArray(aiTasks)) return [];
+  return aiTasks.filter(task => task.aiMetadata?.topic === topicName);
+};
+
 export const LearningDashboardScreen = ({
   learningData,
   // userProfile removed
   roadmap,
+  selectedGoal,
   dashboardData,
   aiTasksData,
+  taskStatistics,
+  aiTasks,
   onTaskComplete,
   onUpdateProgress,
 }) => {
@@ -304,9 +427,9 @@ export const LearningDashboardScreen = ({
     // Initialize AI assistant with user profile
   // userProfile logic removed
 
-    // Load analytics
-    const analyticsData = aiAssistant.getLearningAnalytics();
-    setAnalytics((prev) => ({ ...prev, ...analyticsData }));
+    // Load analytics - placeholder since aiAssistant removed
+    // const analyticsData = aiAssistant.getLearningAnalytics();
+    // setAnalytics((prev) => ({ ...prev, ...analyticsData }));
 
     // Set recommendations to empty array since we removed the AI recommendation generation
     setRecommendations([]);
@@ -364,9 +487,9 @@ export const LearningDashboardScreen = ({
   // Listen for task updates from other pages
   useEffect(() => {
     const handleTasksUpdated = async (event) => {
-      // Refresh analytics when tasks are updated
-      const newAnalytics = aiAssistant.getLearningAnalytics();
-      setAnalytics((prev) => ({ ...prev, ...newAnalytics }));
+      // Refresh analytics when tasks are updated - placeholder since aiAssistant removed
+      // const newAnalytics = aiAssistant.getLearningAnalytics();
+      // setAnalytics((prev) => ({ ...prev, ...newAnalytics }));
 
       // If an AI task was completed elsewhere, update local state
       if (event.detail?.taskId && event.detail?.action === "completed") {
@@ -387,43 +510,9 @@ export const LearningDashboardScreen = ({
         const activeGoal = getActiveGoal();
         if (activeGoal && activeGoal._id) {
           try {
-            // Refresh AI tasks from the backend
-            const aiTasks = await aiAssistant.getAllTasks(activeGoal._id);
-            console.log("Refreshed AI tasks after generation:", aiTasks);
-            
-            // Update current tasks with new data
-            if (aiTasks && aiTasks.length > 0) {
-              const pendingTasks = aiTasks.filter(task => 
-                task.status === 'pending' || task.status === 'in_progress'
-              );
-              setCurrentTasks(pendingTasks);
-              
-              // Update today's tasks as well
-              const now = new Date();
-              const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-              
-              const todayTasks = pendingTasks.filter(task => {
-                let taskDate = null;
-                if (task.scheduledDate) {
-                  taskDate = new Date(task.scheduledDate);
-                } else if (task.dueDate) {
-                  taskDate = new Date(task.dueDate);
-                } else if (task.createdAt) {
-                  taskDate = new Date(task.createdAt);
-                } else {
-                  taskDate = new Date(now);
-                }
-                
-                if (isNaN(taskDate.getTime())) {
-                  taskDate = new Date(now);
-                }
-                
-                return taskDate >= todayStart && taskDate <= today;
-              });
-              
-              setTodaysTasks(todayTasks);
-            }
+            // Refresh tasks using TasksContext instead of aiAssistant
+            await refreshTasks(activeGoal._id);
+            console.log("Refreshed tasks after generation");
           } catch (error) {
             console.error("Error refreshing tasks after generation:", error);
           }
@@ -493,64 +582,6 @@ export const LearningDashboardScreen = ({
     }));
   };
 
-  const handleAITaskSubmission = async (task, submissionData) => {
-    try {
-      // Update task status to completed
-      const updatedTask = {
-        ...task,
-        status: "completed",
-        submissionType: submissionData.type,
-        submissionFile: submissionData.filePath,
-        submittedAt: new Date().toISOString(),
-        actualTime: taskTimers[task.id]?.elapsedTime / 3600 || 0, // Convert seconds to hours
-      };
-
-      // Update local state immediately for responsive UI
-      setCurrentTasks((tasks) =>
-        tasks.map((t) => (t.id === task.id ? updatedTask : t))
-      );
-
-      // Remove from today's tasks if it was there
-      setTodaysTasks((tasks) =>
-        tasks.map((t) => (t.id === task.id ? updatedTask : t))
-      );
-
-      // Stop the timer
-      handleStopTask(task.id);
-
-      // Update analytics
-      const newAnalytics = aiAssistant.getLearningAnalytics();
-      setAnalytics((prev) => ({ ...prev, ...newAnalytics }));
-
-      // Notify parent component to refresh data from backend
-      if (onTaskComplete) {
-        onTaskComplete(task.id);
-      }
-
-      // Update progress
-      if (onUpdateProgress) {
-        onUpdateProgress();
-      }
-
-      // Dispatch event for other components (like TasksPage) to refresh
-      window.dispatchEvent(
-        new CustomEvent("tasksUpdated", {
-          detail: {
-            taskId: task.id,
-            action: "completed",
-            task: updatedTask,
-          },
-        })
-      );
-      
-      // Show success message
-      alert("Task submitted successfully! 🎉");
-      
-    } catch (error) {
-      console.error("Error submitting AI task:", error);
-      alert("Failed to submit task. Please try again.");
-    }
-  };
 
   const handleDeleteGoal = async () => {
     const activeGoal = getActiveGoal();
@@ -570,13 +601,7 @@ export const LearningDashboardScreen = ({
       goalName = activeGoal.description.trim().substring(0, 50) + '...';
     }
     
-    console.log('Active goal for deletion:', {
-      id: activeGoal._id,
-      field: activeGoal.field,
-      title: activeGoal.title,
-      description: activeGoal.description,
-      resolvedName: goalName
-    }); // Debug log
+  // Debug log for active goal for deletion removed
 
     const confirmDelete = window.confirm(
       `Are you sure you want to delete the goal "${goalName}"? This will permanently remove all tasks, progress, and uploaded files related to this goal. This action cannot be undone.`
@@ -630,25 +655,7 @@ export const LearningDashboardScreen = ({
     }
   };
 
-  const handleResetGoal = async () => {
-    if (
-      window.confirm(
-        "Are you sure you want to reset your current goal? This will clear all progress."
-      )
-    ) {
-      try {
-        resetCurrentGoal();
-        setCurrentTasks([]);
-        setAnalytics(null);
-        setRecommendations([]);
-        setTaskTimers({});
-        alert("Goal reset successfully. You can start a new learning journey!");
-      } catch (error) {
-        console.error("Error resetting goal:", error);
-        alert("Failed to reset goal. Please try again.");
-      }
-    }
-  };
+  // handleResetGoal removed (resetCurrentGoal no longer used)
 
   // Calculate completion percentage
   const completionPercentage =
@@ -675,17 +682,17 @@ export const LearningDashboardScreen = ({
 
   return (
     <div className="min-h-screen bg-[#111111] text-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header */}
+      <div className="container mx-auto px-4 py-8">{/* Removed temporary debug logs - core issue fixed: phase/topic index mismatch */}
+        {/* Unified Header with Goal Selector between buttons */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
             <div>
               <h1 className="text-4xl font-bold mb-2">Learning Dashboard</h1>
               <p className="text-gray-300">
                 Phase {learningData?.currentPhase || 1}
               </p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto items-stretch sm:items-center justify-end">
               <button
                 onClick={() => (window.location.href = "/tasks")}
                 className="btn-secondary btn-lg flex items-center gap-2"
@@ -695,6 +702,8 @@ export const LearningDashboardScreen = ({
                 </svg>
                 View All Tasks
               </button>
+            
+              <GoalSelector />
               <button
                 onClick={() => (window.location.href = "/assessment?new=true")}
                 className="btn-primary btn-lg"
@@ -709,14 +718,20 @@ export const LearningDashboardScreen = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="bg-[#181D24] border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
             <CardContent className="p-6">
-              <div className="text-2xl font-bold">{completionPercentage}%</div>
+              <div className="text-2xl font-bold">{taskStatistics?.overall?.completionPercentage ? (taskStatistics.overall.completionPercentage).toFixed(1) : '0.0'}%</div>
               <div className="text-gray-300">Completion</div>
             </CardContent>
           </Card>
           <Card className="bg-[#181D24] border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
             <CardContent className="p-6">
-              <div className="text-2xl font-bold">{currentTasks.length}</div>
+              <div className="text-2xl font-bold">{taskStatistics?.overall?.total || 0}</div>
               <div className="text-gray-300">Total Tasks</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-[#181D24] border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
+            <CardContent className="p-6">
+              <div className="text-2xl font-bold">{taskStatistics?.overall?.completed || 0}/{taskStatistics?.overall?.total || 0}</div>
+              <div className="text-gray-300">Completed</div>
             </CardContent>
           </Card>
           <Card className="bg-[#181D24] border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
@@ -725,14 +740,6 @@ export const LearningDashboardScreen = ({
                 {totalEstimatedTime.toFixed(1)}h
               </div>
               <div className="text-gray-300">Estimated Time</div>
-            </CardContent>
-          </Card>
-          <Card className="bg-[#181D24] border-sky-200/50 dark:bg-gray-800/60 dark:border-gray-700/50">
-            <CardContent className="p-6">
-              <div className="text-2xl font-bold">
-                {totalActualTime.toFixed(1)}h
-              </div>
-              <div className="text-gray-300">Time Spent</div>
             </CardContent>
           </Card>
         </div>
@@ -845,7 +852,7 @@ export const LearningDashboardScreen = ({
                 Skill Progression
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {generateSkillProgression(currentTasks, roadmap).map((skill, index) => (
+                {generateSkillProgression(currentTasks, roadmap, taskStatistics).map((skill, index) => (
                   <div key={index} className="p-4 bg-white/5 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-white">{skill.name}</span>
@@ -888,7 +895,21 @@ export const LearningDashboardScreen = ({
                         </div>
                         <div>
                           <h4 className="text-indigo-700 font-bold text-xl dark:text-white">{phase.title}</h4>
-                          <p className="text-sky-700 dark:text-gray-300">Phase {phase.phase} • {phase.duration} {phase.duration === 1 ? 'month' : 'months'}</p>
+                          <p className="text-sky-700 dark:text-gray-300">
+                            Phase {phase.phase} • {phase.duration} {phase.duration === 1 ? 'month' : 'months'}
+                            {(() => {
+                              const aiPhaseStats = getAITaskStatsForPhase(taskStatistics, phase.phase);
+                              const hasAIStats = aiPhaseStats.total > 0;
+                              const fallbackCompleted = selectedGoal ? getCompletedTasksForPhase(selectedGoal, phase.phase) : 0;
+                              const fallbackTotal = getTotalTasksForPhase(currentTasks, phase.phase);
+                              
+                              return (
+                                <span className="ml-2 text-green-400 font-semibold">
+                                  ({hasAIStats ? aiPhaseStats.completed : fallbackCompleted} / {hasAIStats ? aiPhaseStats.total : fallbackTotal} tasks completed)
+                                </span>
+                              );
+                            })()}
+                          </p>
                         </div>
                       </div>
                       {phase.adjustedForUser && (
@@ -925,6 +946,30 @@ export const LearningDashboardScreen = ({
           {topicSubtopics && Array.isArray(topicSubtopics) && (
             <span className="ml-2 text-blue-300">{topicSubtopics.join(", ")}</span>
           )}
+          {(() => {
+            // NEW: Use robust topic task statistics with comprehensive data validation
+            const topicStats = getTopicTaskStats(taskStatistics, phase.phase, topicIndex);
+            
+
+            
+            // Only show stats if we have actual task data for this topic
+            if (topicStats.hasData && topicStats.total > 0) {
+              const completionPercentage = topicStats.total > 0 
+                ? Math.round((topicStats.completed / topicStats.total) * 100) 
+                : 0;
+              
+              return (
+                <div className="text-sm text-green-400 font-semibold mt-1">
+                  <div className="flex items-center gap-2">
+                    <span>{topicStats.completed} / {topicStats.total} tasks completed</span>
+                    <span className="text-xs text-blue-300">({completionPercentage}%)</span>
+                  </div>
+                </div>
+              );
+            }
+            // No tasks found for this topic - show nothing (clean UI)
+            return null;
+          })()}
         </div>
         {isExpanded ? (
           <span className="ml-4 text-cyan-400 font-bold">▲</span>

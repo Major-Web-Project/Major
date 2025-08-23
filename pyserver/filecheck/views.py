@@ -115,21 +115,8 @@ class FileCheckView(APIView):
                 "missingCriteria": success_criteria, # All criteria are missing if no text is found
             }, status=status.HTTP_200_OK)
 
-        # --- 4. Pre-check based on local extraction ---
-        criteria_norm = [self._normalize_text(c) for c in success_criteria if isinstance(c, str) and c.strip()]
-        
-        precheck_missing = []
-        for c in criteria_norm:
-            if not self._criterion_passes(combined_text_norm, c):
-                precheck_missing.append(c)
-
-        if precheck_missing:
-            print(f"[FileCheck] Local pre-check failed. Missing: {precheck_missing}")
-            return Response({
-                "result": False,
-                "reason": "Local content check failed for one or more success criteria.",
-                "missingCriteria": precheck_missing,
-            }, status=status.HTTP_200_OK)
+    # --- 4. Pre-check based on local extraction ---
+    # (Removed: local precheck for missing criteria)
 
         # --- 5. Bypass check (for dev/testing) ---
         if _bypass_enabled():

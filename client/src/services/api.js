@@ -13,7 +13,7 @@ const getAuthStore = async () => {
 };
 
 const api = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
   timeout: 10000, // 10 second timeout for regular operations
   headers: {
@@ -23,7 +23,7 @@ const api = axios.create({
 
 // Create a separate instance for AI operations with NO timeout
 const aiApi = axios.create({
-  baseURL: "http://localhost:5000/api",
+  baseURL: import.meta.env.VITE_API_URL,
   withCredentials: true,
   timeout: 0, // NO timeout - let AI take as long as needed
   headers: {
@@ -147,7 +147,6 @@ export const getTasksByDate = (date, goalId = null) => {
   return api.get(url);
 };
 export const getLearningStats = () => api.get("/learning/stats");
-export const getAssessmentQuestions = () => api.get("/assessment/questions");
 
 // Task methods
 export const deleteTask = (id) => api.delete(`/tasks/${id}`);
@@ -408,6 +407,190 @@ export const apiService = {
   clearOldFiles: async (_daysOld = 30) => 0,
 
   getFilesByTaskId: async (_taskId) => [],
+
+  // --- NEW AI TASK ENDPOINTS ---
+
+  // Get AI-generated tasks for a goal with statistics
+  getAITasksForGoal: async (goalId, options = {}) => {
+    try {
+      if (!goalId) {
+        throw new Error("Goal ID is required");
+      }
+
+      const params = new URLSearchParams({
+        page: options.page || 1,
+        limit: options.limit || 50,
+        ...(options.status && { status: options.status }),
+      });
+
+      const response = await api.get(`/ai/tasks/by-goal/${goalId}?${params}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching AI tasks for goal:", error);
+      throw error;
+    }
+  },
+
+  // Create Task documents from stored AI output
+  createTasksFromAIOutput: async (goalId) => {
+    try {
+      if (!goalId) {
+        throw new Error("Goal ID is required");
+      }
+
+      const response = await api.post("/ai/tasks/create-from-output", {
+        goalId,
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error creating tasks from AI output:", error);
+      throw error;
+    }
+  },
+
+  // Get task statistics by phase and topic for a goal
+  getTaskStatsByGoal: async (goalId) => {
+    try {
+      if (!goalId) {
+        throw new Error("Goal ID is required");
+      }
+
+      // Fetch ALL tasks for statistics calculation (set very high limit to get all tasks)
+      const response = await apiService.getAITasksForGoal(goalId, {
+        limit: 10000,
+      });
+      const tasks = response.data?.tasks || [];
+
+      // Calculate statistics by phase and topic
+      const stats = {
+        totalTasks: tasks.length,
+        completedTasks: tasks.filter((task) => task.status === "completed")
+          .length,
+        byPhase: {},
+        byTopic: {},
+        overall: {
+          total: tasks.length,
+          completed: tasks.filter((task) => task.status === "completed").length,
+          inProgress: tasks.filter((task) => task.status === "in-progress")
+            .length,
+          notStarted: tasks.filter(
+            (task) => !task.status || task.status === "not-started"
+          ).length,
+          completionPercentage:
+            tasks.length > 0
+              ? (tasks.filter((task) => task.status === "completed").length /
+                  tasks.length) *
+                100
+              : 0,
+        },
+      };
+
+      tasks.forEach((task) => {
+        const phase = task.aiMetadata?.phase || task.phase || 1;
+        const topic = task.aiMetadata?.topic || "General";
+        const isCompleted = task.status === "completed";
+
+        // Ensure phase is treated as both string and number keys for compatibility
+        const phaseKey = String(phase); // Store as string for consistency
+        const topicKey = String(topic); // Store as string for consistency
+
+        // Phase statistics
+        if (!stats.byPhase[phaseKey]) {
+          stats.byPhase[phaseKey] = {
+            total: 0,
+            completed: 0,
+            inProgress: 0,
+            notStarted: 0,
+            completionPercentage: 0,
+          };
+        }
+        stats.byPhase[phaseKey].total++;
+        if (isCompleted) {
+          stats.byPhase[phaseKey].completed++;
+        } else if (task.status === "in-progress") {
+          stats.byPhase[phaseKey].inProgress++;
+        } else {
+          stats.byPhase[phaseKey].notStarted++;
+        }
+
+        // Topic statistics
+        if (!stats.byTopic[topicKey]) {
+          stats.byTopic[topicKey] = {
+            total: 0,
+            completed: 0,
+            inProgress: 0,
+            notStarted: 0,
+            completionPercentage: 0,
+          };
+        }
+        stats.byTopic[topicKey].total++;
+        if (isCompleted) {
+          stats.byTopic[topicKey].completed++;
+        } else if (task.status === "in-progress") {
+          stats.byTopic[topicKey].inProgress++;
+        } else {
+          stats.byTopic[topicKey].notStarted++;
+        }
+      });
+
+      // Calculate completion percentages for phases
+      Object.keys(stats.byPhase).forEach((phase) => {
+        const phaseStats = stats.byPhase[phase];
+        phaseStats.completionPercentage =
+          phaseStats.total > 0
+            ? (phaseStats.completed / phaseStats.total) * 100
+            : 0;
+      });
+
+      // Calculate completion percentages for topics
+      Object.keys(stats.byTopic).forEach((topic) => {
+        const topicStats = stats.byTopic[topic];
+        topicStats.completionPercentage =
+          topicStats.total > 0
+            ? (topicStats.completed / topicStats.total) * 100
+            : 0;
+      });
+
+      console.log("[API] Final task statistics:", {
+        totalTasks: stats.overall.total,
+        phaseKeys: Object.keys(stats.byPhase),
+        topicKeys: Object.keys(stats.byTopic),
+        byPhase: stats.byPhase,
+        byTopic: stats.byTopic,
+      });
+
+      return {
+        success: true,
+        data: {
+          tasks,
+          statistics: stats,
+        },
+      };
+    } catch (error) {
+      console.error("Error getting task statistics:", error);
+      throw error;
+    }
+  },
+
+  // Complete a task by updating its status
+  completeTask: async (taskId) => {
+    try {
+      if (!taskId) {
+        throw new Error("Task ID is required");
+      }
+
+      const response = await api.put(`/tasks/${taskId}`, {
+        data: {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Error completing task:", error);
+      throw error;
+    }
+  },
 };
 
 // Goal creation with NO timeout - let AI generate all needed tasks

@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { TasksScreen } from "../components/tasks/TasksScreen";
-import { aiAssistant } from "../services/aiLearningService";
 import { useTasks } from "../contexts/TasksContext";
 import { useGoalStore } from "../store/goalStore.js";
 import { useAppStore } from "../store/appStore.js";
 import { useTaskStore } from "../store/taskStore.js";
 import GoalSelector from "../components/ui/GoalSelector.jsx";
+
 import NoGoalsGuard from "../components/ui/NoGoalsGuard.jsx";
+
 
 export default function TasksPage() {
   const { refreshTasks } = useTasks();
   const { goals, activeGoalId, getActiveGoal, hasGoals, initializeGoals, setActiveGoal } = useGoalStore();
   const { setCurrentPage } = useAppStore();
   const { tasks, fetchTasks, isLoading: tasksLoading } = useTaskStore();
-  
+
   const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,19 +27,21 @@ export default function TasksPage() {
   }, [setCurrentPage]);
 
 
+
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Ensure goals are loaded
+        // Only proceed if we have goals (NoGoalsGuard handles the no-goals case)
         if (!hasGoals()) {
-          await initializeGoals();
+          setLoading(false);
+          return;
         }
 
         // If no active goal is set but there are goals, auto-select the most recent
-        if (!activeGoalId && hasGoals() && goals.length > 0) {
+        if (!activeGoalId && goals.length > 0) {
           const mostRecentGoal = goals.reduce((latest, current) => {
             const latestDate = new Date(latest.createdAt || latest._id);
             const currentDate = new Date(current.createdAt || current._id);
@@ -46,27 +49,21 @@ export default function TasksPage() {
           });
           if (mostRecentGoal && mostRecentGoal._id) {
             setActiveGoal(mostRecentGoal._id);
+            setLoading(false);
+            return;
           }
-          return; // wait for activeGoalId to update
         }
 
+        // Only fetch tasks if we have goals and an active goal
         if (hasGoals() && activeGoalId) {
-          // Load tasks for the active goal using the task store
           await fetchTasks(activeGoalId);
-          
-          // Also load AI tasks for the goal
           try {
-            const aiTasks = await aiAssistant.getAllTasks(activeGoalId);
-            setAllTasks(aiTasks);
+            const taskList = await refreshTasks(activeGoalId);
+            setAllTasks(taskList || []);
           } catch (aiError) {
-            console.warn("Could not load AI tasks:", aiError);
+            console.warn("Could not load tasks:", aiError);
             setAllTasks([]);
           }
-        }
-
-        // Refresh tasks from the main task system
-        if (activeGoalId) {
-          await refreshTasks(activeGoalId);
         }
       } catch (error) {
         console.error("Error loading data:", error);
@@ -84,8 +81,8 @@ export default function TasksPage() {
       if (!newGoalId) return;
       try {
         await fetchTasks(newGoalId);
-        const aiTasks = await aiAssistant.getAllTasks(newGoalId);
-        setAllTasks(aiTasks);
+        const taskList = await refreshTasks(newGoalId);
+        setAllTasks(taskList || []);
         setError(null);
       } catch (err) {
         console.error("Failed to refresh tasks after goal change:", err);
@@ -107,9 +104,8 @@ export default function TasksPage() {
           try {
             // Refresh both regular tasks and AI tasks
             await fetchTasks(activeGoalId);
-            const aiTasks = await aiAssistant.getAllTasks(activeGoalId);
-            setAllTasks(aiTasks);
-            await refreshTasks(activeGoalId);
+            const taskList = await refreshTasks(activeGoalId);
+            setAllTasks(taskList || []);
             setError(null);
           } catch (error) {
             console.error("[TasksPage] Error refreshing tasks:", error);
@@ -125,7 +121,7 @@ export default function TasksPage() {
       window.removeEventListener("goalChanged", handleGoalChanged);
       window.removeEventListener("tasksUpdated", handleTasksUpdated);
     };
-  }, [activeGoalId, hasGoals, goals, fetchTasks, refreshTasks, initializeGoals, setActiveGoal]);
+  }, [activeGoalId, hasGoals, goals, fetchTasks, refreshTasks, setActiveGoal]);
 
   // Goal changing is now handled by the GoalSelector component and goal store
 
@@ -137,8 +133,8 @@ export default function TasksPage() {
     if (activeGoalId) {
       try {
         await fetchTasks(activeGoalId);
-        const aiTasks = await aiAssistant.getAllTasks(activeGoalId);
-        setAllTasks(aiTasks);
+        const taskList = await refreshTasks(activeGoalId);
+        setAllTasks(taskList || []);
       } catch (error) {
         console.error("Error reloading tasks:", error);
       }
@@ -147,52 +143,59 @@ export default function TasksPage() {
 
 
 
-  if (loading || tasksLoading) {
+  // Only show loading if we have goals but are loading task data
+
+  // Only show loading if we have goals and are loading data
+  if (hasGoals() && (loading || tasksLoading)) {
     return (
-      <div className="bg-[#111111] min-h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Loading your tasks...</div>
-      </div>
+      <NoGoalsGuard>
+        <div className="bg-[#111111] min-h-screen flex items-center justify-center">
+          <div className="text-white text-xl">Loading your tasks...</div>
+        </div>
+      </NoGoalsGuard>
     );
   }
 
-  if (error) {
+  // Only show error if we have goals but failed to load task data
+  if (hasGoals() && error) {
     return (
-      <div className="bg-[#111111] min-h-screen flex items-center justify-center">
-        <div className="text-white text-center">
-          <div className="text-xl mb-4">Error loading tasks</div>
-          <div className="text-gray-400 mb-4">{error}</div>
-          <button
-            onClick={() => window.location.reload()}
-            className="btn-primary btn-md"
-          >
-            Retry
-          </button>
+      <NoGoalsGuard>
+        <div className="bg-[#111111] min-h-screen flex items-center justify-center">
+          <div className="text-white text-center">
+            <div className="text-xl mb-4">Error loading tasks</div>
+            <div className="text-gray-400 mb-4">{error}</div>
+            <button
+              onClick={() => window.location.reload()}
+              className="btn-primary btn-md"
+            >
+              Retry
+            </button>
+          </div>
         </div>
-      </div>
+      </NoGoalsGuard>
     );
   }
 
   return (
     <NoGoalsGuard>
       <div className="bg-[#111111] min-h-screen">
-        {/* Header with Goal Selector */}
+        {/* Unified Goal Header Section */}
         <div className="p-4 border-b border-gray-800">
           <div className="max-w-7xl mx-auto">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-              <div>
-                <h1 className="text-2xl font-bold text-white">
-                  Your Learning Tasks
-                </h1>
+              {/* Left: Goal Title/Timeline/Phase */}
+              <div className="flex flex-col">
                 {activeGoal && (
-                  <p className="text-gray-400 text-sm mt-1">
-                    Showing tasks for: <span className="text-blue-400 font-medium">{activeGoal.field}</span>
-                    {activeGoal.timeline && (
-                      <span className="ml-2">({activeGoal.timeline} months)</span>
-                    )}
-                  </p>
+                  <>
+                    <span className="text-2xl font-bold text-white mb-1">{activeGoal.field}</span>
+                    <span className="text-gray-400 text-sm">
+                      {activeGoal.timeline} months • Phase {activeGoal.currentPhase || 1}
+                    </span>
+                  </>
                 )}
               </div>
-              <div className="flex items-center gap-4">
+              {/* Right: Goal Selector */}
+              <div className="flex-shrink-0">
                 <GoalSelector />
               </div>
             </div>
@@ -202,7 +205,6 @@ export default function TasksPage() {
         {/* Tasks Screen */}
         {activeGoal ? (
           <TasksScreen
-            // userProfile removed
             learningData={{
               currentPhase: activeGoal.currentPhase,
             }}
@@ -211,21 +213,6 @@ export default function TasksPage() {
             goalData={activeGoal}
             onTaskComplete={handleTaskComplete}
           />
-        ) : hasGoals() ? (
-          <div className="flex items-center justify-center min-h-[400px]">
-            <div className="text-center">
-              <div className="text-6xl mb-4">🎯</div>
-              <h3 className="text-xl font-semibold text-white mb-2">
-                No Goal Selected
-              </h3>
-              <p className="text-gray-400 mb-4">
-                Please select a goal to view your tasks.
-              </p>
-              <p className="text-sm text-gray-500">
-                Tasks are organized by goals to keep your learning focused.
-              </p>
-            </div>
-          </div>
         ) : null}
       </div>
     </NoGoalsGuard>

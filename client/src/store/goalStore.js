@@ -67,7 +67,7 @@ export const useGoalStore = create(
           set({
             error: errorMessage,
             isLoadingGoals: false,
-            isInitialized: true,
+            isInitialized: true, // <-- always set this!
           });
           return [];
         }

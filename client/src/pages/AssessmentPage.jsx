@@ -10,33 +10,13 @@ import {
   assessmentQuestions,
   saveAssessmentAnswers,
 } from "../services/aiLearningService";
+import { useGoalStore } from "../store/goalStore";
 import { useAuthStore } from "../store/authStore";
 
-/**
- * Assessment options mapping (must match backend order exactly!)
- * Each array represents the options for a question, in ascending order of value/level.
- * The index of the selected option is sent to the backend.
- *
- * IMPORTANT: If you change the order or content here, update the backend's assessmentOptions too.
- */
-// Use the value field for answer mapping, and label for display.
-// Consistency options are now in ascending order of commitment.
-const assessmentOptions = [
-  ["fast_overview", "step_by_step", "hands_on", "theory_first"],
-  ["structured", "flexible", "interactive", "guided"],
-  ["beginner", "intermediate", "advanced", "expert"],
-  ["need_support", "somewhat", "comfortable", "very_comfortable"],
-  ["1_hour", "2_hours", "4_hours", "6_plus"],
-  ["flexible", "somewhat_consistent", "mostly_consistent", "very_consistent"],
-  ["personal_interest", "promotion", "skill_upgrade", "career_change"],
-];
-console.log("[AssessmentPage] assessmentOptions:", assessmentOptions);
-console.log("[AssessmentPage] assessmentOptions length:", assessmentOptions.length);
-assessmentOptions.forEach((opts, idx) => console.log(`[AssessmentPage] assessmentOptions[${idx}] length:`, opts.length));
 const AssessmentPage = () => {
   const { user } = useAuthStore();
   const navigate = useNavigate();
-  // Remove createGoal and isGeneratingTasks from useGoalStore
+  const { createGoal, isGeneratingTasks } = useGoalStore();
 
   // --- SSE Progress for Roadmap and Task Generation ---
   const [roadmapSseUrl, setRoadmapSseUrl] = useState(null);
@@ -93,7 +73,13 @@ const AssessmentPage = () => {
   const tasksSse = useSSEProgress(tasksSseUrl, async (data) => {
     setIsTaskGenerationLoading(false);
     console.log('[AssessmentPage] SSE data received:', data);
-    if (data.tasks || data.tasksGenerated > 0) {
+    
+    // Check if task creation was successful
+    const hasValidTasks = data.tasks || 
+                         (data.tasksCreated && data.tasksCreated > 0) || 
+                         (data.totalTasksGenerated && data.totalTasksGenerated > 0);
+    
+    if (hasValidTasks && !data.taskCreationError) {
       setAiProgress({ stage: 'Complete! Redirecting to your tasks...', progress: 100 });
       // Fetch goals to update the store so the new goal appears immediately
       try {
@@ -122,8 +108,15 @@ const AssessmentPage = () => {
       setTimeout(() => {
         navigate("/tasks");
       }, 1000);
+    } else if (data.taskCreationError || (!hasValidTasks && data.goalId)) {
+      // Show error if task creation failed or no tasks were created
+      const errorMessage = data.taskCreationError || 
+                          "No tasks were generated. Please try again or contact support.";
+      setGoalCreationError(errorMessage);
+      setAiProgress({ stage: 'Error: Task generation failed', progress: 0 });
     } else if (data.error) {
       setGoalCreationError(data.error || "AI streaming error");
+      setAiProgress({ stage: 'Error: AI streaming failed', progress: 0 });
     }
     // Always reset tasksSseUrl after completion to prevent re-trigger
     setTasksSseUrl(null);
@@ -142,7 +135,7 @@ const AssessmentPage = () => {
   // Remove all localStorage cleanup logic for roadmap/goal
   const [currentStep, setCurrentStep] = useState("pathSelection"); // pathSelection, assessment, goalSetup, roadmap
   const [selectedPath, setSelectedPath] = useState("");
-  // userProfile state fully removed
+  const [userProfile, setUserProfile] = useState(null);
   const [goalData, setGoalData] = useState(null);
   const [roadmap, setRoadmap] = useState(null);
   const [goalCreationError, setGoalCreationError] = useState(null);
@@ -163,6 +156,7 @@ const AssessmentPage = () => {
 
     if (isNewGoalCreation) {
       // Clear any existing assessment data for fresh start
+      localStorage.removeItem("aiLearning_userProfile");
       localStorage.removeItem("aiLearning_goalData");
       localStorage.removeItem("aiLearning_roadmap");
       localStorage.removeItem("aiLearning_currentStep");
@@ -175,6 +169,7 @@ const AssessmentPage = () => {
       setCurrentStep("pathSelection");
       setGoalData(null);
       setRoadmap(null);
+      setUserProfile(null);
       return;
     }
 
@@ -195,6 +190,17 @@ const AssessmentPage = () => {
     if (savedSelectedPath) {
       setSelectedPath(savedSelectedPath);
     }
+    
+    // Load saved user profile
+    const savedUserProfile = localStorage.getItem("aiLearning_userProfile");
+    if (savedUserProfile) {
+      try {
+        setUserProfile(JSON.parse(savedUserProfile));
+      } catch (e) {
+        console.warn("Failed to parse saved user profile:", e);
+      }
+    }
+    
     if (savedGoalData) {
       setGoalData(JSON.parse(savedGoalData));
     }
@@ -213,8 +219,7 @@ const AssessmentPage = () => {
 
   // Check if user has existing incomplete assessment data
   const hasIncompleteData = () => {
-  // userProfile removed
-  const savedProfile = null;
+    const savedProfile = localStorage.getItem("aiLearning_userProfile");
     const savedGoalData = localStorage.getItem("aiLearning_goalData");
     const savedRoadmap = localStorage.getItem("aiLearning_roadmap");
     const savedLearningData = localStorage.getItem("aiLearning_learningData");
@@ -244,6 +249,16 @@ const AssessmentPage = () => {
                   onClick={() => {
                     // Continue with existing data
                     const savedStep = localStorage.getItem("aiLearning_currentStep");
+                    const savedUserProfile = localStorage.getItem("aiLearning_userProfile");
+                    
+                    if (savedUserProfile) {
+                      try {
+                        setUserProfile(JSON.parse(savedUserProfile));
+                      } catch (e) {
+                        console.warn("Failed to parse saved user profile:", e);
+                      }
+                    }
+                    
                     if (savedStep) {
                       setCurrentStep(savedStep);
                     } else {
@@ -260,7 +275,7 @@ const AssessmentPage = () => {
                 <Button
                   onClick={() => {
                     // Start fresh
-                    // userProfile localStorage fully removed
+                    localStorage.removeItem("aiLearning_userProfile");
                     localStorage.removeItem("aiLearning_goalData");
                     localStorage.removeItem("aiLearning_roadmap");
                     localStorage.removeItem("aiLearning_currentStep");
@@ -270,7 +285,7 @@ const AssessmentPage = () => {
 
                     setCurrentStep("pathSelection");
                     setSelectedPath("");
-                    // setUserProfile fully removed
+                    setUserProfile(null);
                     setGoalData(null);
                     setRoadmap(null);
                   }}
@@ -295,53 +310,50 @@ const AssessmentPage = () => {
     setCurrentStep("assessment");
   };
 
-  // Store assessment answers in a variable and pass to backend
-  // Initialize all answers to -1 (unanswered)
-  const [assessmentAnswers, setAssessmentAnswers] = useState(Array(assessmentOptions.length).fill(-1));
   /**
    * Handles completion of the assessment step.
-   * Maps each selected option to its index (ascending order, as per assessmentOptions).
-   * Validates that all indices are within range.
+   * Receives the user profile and responses from AssessmentScreen.
    */
-  const handleAssessmentComplete = async (responses) => {
-    console.log("[AssessmentPage] handleAssessmentComplete responses:", responses);
-    // Robust validation: ensure all questions are answered
-    if (!responses || responses.length !== assessmentOptions.length) {
-      console.error("[AssessmentPage] Assessment incomplete: responses.length=", responses?.length, "expected=", assessmentOptions.length);
-      alert("Assessment is incomplete. Please answer all questions before continuing.");
-      return;
-    }
-    // Map responses to indices using value, not label
-    const answers = responses.map((r, idx) => {
-      const questionOptions = assessmentOptions[idx];
-      const answerIdx = questionOptions.findIndex(opt => opt === r.value);
-      if (answerIdx === -1) {
-        console.error(`[AssessmentPage] Invalid answer: '${r.value}' not found in options for question ${idx + 1}`);
-        alert(`Invalid answer: '${r.value}' not found in options for question ${idx + 1}`);
-        throw new Error(`Invalid answer: '${r.value}' not found in options for question ${idx + 1}`);
-      }
-      return answerIdx;
-    });
-    console.log("[AssessmentPage] Computed answer indices:", answers);
-    // Validation: Ensure all indices are valid
-    if (answers.some(idx => typeof idx !== "number" || idx < 0)) {
-      console.error("[AssessmentPage] Invalid indices in answers:", answers);
-      alert("Assessment contains invalid answers. Please review your selections.");
-      return;
-    }
-    setAssessmentAnswers(answers);
-    // Always pass personalNeeds to backend as personalize
-    const personalize = personalNeeds || "";
-    const path = selectedPath || "";
-    // Persist all assessment data as a single object (duration will be set in goalSetup step)
+  const handleAssessmentComplete = (profile, responses) => {
+    console.log('[AssessmentPage] Assessment completed with:', { profile, responses });
+    setUserProfile(profile);
+
+    // Save detailed assessment data for future AI model integration
     const assessmentData = {
-    answers,
-    personalize, // Always set from personalNeeds
-    path,
-    timestamp: new Date().toISOString(),
-  };
-  localStorage.setItem("aiLearning_assessmentData", JSON.stringify(assessmentData));
-  setCurrentStep("goalSetup");
+      userProfile: profile,
+      responses: responses,
+      selectedPath: selectedPath,
+      timestamp: new Date().toISOString(),
+      completedSections: Object.keys(assessmentQuestions),
+      totalQuestions: Object.values(assessmentQuestions).reduce(
+        (sum, section) => sum + section.length,
+        0
+      ),
+      responsesByCategory: responses.reduce((acc, response) => {
+        if (!acc[response.category]) {
+          acc[response.category] = [];
+        }
+        acc[response.category].push(response);
+        return acc;
+      }, {}),
+    };
+
+    localStorage.setItem("aiLearning_userProfile", JSON.stringify(profile));
+    localStorage.setItem(
+      "aiLearning_assessmentResponses",
+      JSON.stringify(responses)
+    );
+    localStorage.setItem(
+      "aiLearning_assessmentData",
+      JSON.stringify(assessmentData)
+    );
+    localStorage.setItem("aiLearning_currentStep", "goalSetup");
+    console.log('[AssessmentPage] Data saved to localStorage:', {
+      userProfile: profile,
+      responses: responses,
+      assessmentData: assessmentData
+    });
+    setCurrentStep("goalSetup");
   };
 
   const getSseUrl = (relativeUrl) => {
@@ -365,40 +377,75 @@ const AssessmentPage = () => {
       return;
     }
     setCurrentStep("generatingRoadmap");
-    // Frontend validation for assessmentAnswers only
-    const requiredIndices = [2, 4, 5];
-    const missingAnswers = requiredIndices.filter(idx => typeof assessmentAnswers[idx] !== "number" || isNaN(assessmentAnswers[idx]) || assessmentAnswers[idx] === -1);
+    
+    // Get assessment data from localStorage and state
+    const responses = JSON.parse(localStorage.getItem("aiLearning_assessmentResponses") || "[]");
+    
+    console.log('[AssessmentPage] Retrieved responses from localStorage:', responses);
+    console.log('[AssessmentPage] UserProfile state:', userProfile);
+    
+    // Validation - ensure we have required data
     const missingFields = [];
-    if (missingAnswers.length > 0) missingFields.push('answers');
+    if (!userProfile) missingFields.push('userProfile');
+    if (!responses || !Array.isArray(responses) || responses.length === 0) missingFields.push('responses');
     if (!goals?.learningPath && !selectedPath) missingFields.push('learningPath');
     if (!months) missingFields.push('months');
+    
     if (missingFields.length > 0) {
-      console.error('[AssessmentPage] Missing or undefined fields:', missingFields, { assessmentAnswers, goals });
+      console.error('[AssessmentPage] Missing or undefined fields:', missingFields, { userProfile, responses, goals });
       alert('Assessment is incomplete or invalid. Please ensure all required fields are filled before continuing.\nMissing: ' + missingFields.join(', '));
       setCurrentStep("goalSetup");
       return;
     }
-    // Save assessment answers as before
+
+    // Convert responses to the format expected by backend (array of answer indices)
+    const assessmentAnswers = responses.map(response => {
+      // Find the question by questionId to get the options
+      const allQuestions = Object.values(assessmentQuestions).flat();
+      const question = allQuestions.find(q => q.id === response.questionId);
+      
+      if (question) {
+        // Find the option index based on the selected value
+        const optionIndex = question.options.findIndex(opt => opt.value === response.value);
+        console.log(`[AssessmentPage] Converting response: questionId=${response.questionId}, value=${response.value}, optionIndex=${optionIndex}`);
+        return optionIndex >= 0 ? optionIndex : 0; // Default to 0 if not found
+      }
+      
+      console.warn(`[AssessmentPage] Question not found for ID: ${response.questionId}`);
+      return 0; // Default fallback
+    });
+    
+    console.log('[AssessmentPage] Original responses:', responses);
+    console.log('[AssessmentPage] Converted assessmentAnswers:', assessmentAnswers);
+    
+    // Save assessment answers
     try {
       const assessmentData = JSON.parse(localStorage.getItem("aiLearning_assessmentData") || "{}");
       const token = localStorage.getItem("token");
       if (user && user._id) {
         assessmentData.userId = user._id;
       }
-      await saveAssessmentAnswers({
+      
+      const saveData = {
         answers: assessmentAnswers,
         personalize: goals.personalize || "",
         duration: months,
         path: goals.learningPath || selectedPath || "",
         token,
         userId: user && user._id ? user._id : undefined,
-      });
+      };
+      
+      console.log('[AssessmentPage] Saving assessment answers:', saveData);
+      
+      const saveResult = await saveAssessmentAnswers(saveData);
+      console.log('[AssessmentPage] Assessment answers saved successfully:', saveResult);
     } catch (error) {
       console.error("[AssessmentPage] Error saving assessment answers:", error);
       alert("Failed to save assessment answers. Please try again.");
       setCurrentStep("goalSetup");
       return;
     }
+    
     // Now trigger roadmap generation via SSE
     // Build context and query string
     const context = {
@@ -408,6 +455,10 @@ const AssessmentPage = () => {
       path: goals.learningPath || selectedPath || "",
       userId: user?._id || user?.id || "",
     };
+    
+    console.log('[AssessmentPage] Roadmap context:', context);
+    console.log('[AssessmentPage] Personalization value:', context.personalize);
+    console.log('[AssessmentPage] Personalization length:', context.personalize.length);
     const params = new URLSearchParams();
     Object.entries(context).forEach(([key, value]) => {
       if (typeof value === "object") {
@@ -425,15 +476,109 @@ const AssessmentPage = () => {
   setCurrentStep("generatingRoadmap");
   };
 
+  // --- New: All-in-one 5D Task Generation Handler ---
   const handleStartLearning = async () => {
     setGoalCreationError(null);
     setIsTaskGenerationLoading(true);
+    setAiProgress({ stage: "Initializing comprehensive task generation...", progress: 0 });
+    
     const userId = user?._id || user?.id || "";
     const goalId = goalData?._id || "";
-  // Prefer SSE per-phase endpoint for reliability
-  const params = new URLSearchParams({ userId, goalId });
-  const sseUrl = getSseUrl(`/api/ai/tasks/stream-phases?${params.toString()}`);
-  setTasksSseUrl(sseUrl);
+    if (!goalId) {
+      setGoalCreationError("Goal not found. Please complete the roadmap step first.");
+      setIsTaskGenerationLoading(false);
+      return;
+    }
+    
+    try {
+      // Use SSE streaming for task generation similar to roadmap
+      const params = new URLSearchParams({
+        goalId,
+        personalization: goalData?.personalize || "",
+      });
+      
+      console.log('[handleStartLearning] Task generation params:', {
+        goalId,
+        personalization: goalData?.personalize || "",
+        goalData: goalData
+      });
+      
+      const sseUrl = getSseUrl(`/api/ai/tasks/stream?${params.toString()}`);
+      console.log("[handleStartLearning] Starting SSE for tasks:", sseUrl);
+      
+      const eventSource = new EventSource(sseUrl);
+      
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log("[handleStartLearning] SSE task data:", data);
+          
+          if (data.error) {
+            setGoalCreationError(data.error);
+            setIsTaskGenerationLoading(false);
+            eventSource.close();
+            return;
+          }
+          
+          // Update progress
+          setAiProgress({
+            stage: data.stage || "Generating tasks...",
+            progress: data.percent || 0,
+          });
+          
+          // Handle completion
+          if (data.stage === "Complete" || data.percent === 100) {
+            eventSource.close();
+            setAiProgress({ stage: "Complete! Redirecting to your tasks...", progress: 100 });
+            
+            // Refresh goals in store
+            (async () => {
+              try {
+                const goalStore = await import("../store/goalStore.js");
+                if (goalStore && goalStore.useGoalStore) {
+                  const store = goalStore.useGoalStore.getState();
+                  await store.fetchGoals();
+                  const { goals, setActiveGoal } = goalStore.useGoalStore.getState();
+                  if (data.result?.goalId || goalId) {
+                    setActiveGoal(data.result?.goalId || goalId);
+                  } else if (goals && goals.length > 0) {
+                    const mostRecentGoal = goals.reduce((latest, current) => {
+                      const latestDate = new Date(latest.createdAt || latest._id);
+                      const currentDate = new Date(current.createdAt || current._id);
+                      return currentDate > latestDate ? current : latest;
+                    });
+                    if (mostRecentGoal?._id) setActiveGoal(mostRecentGoal._id);
+                  }
+                }
+              } catch (err) {
+                console.warn("[handleStartLearning] Could not refresh goals after task generation:", err);
+              }
+            })();
+            
+            setTimeout(() => {
+              navigate("/tasks");
+            }, 1000);
+          }
+        } catch (parseError) {
+          console.error("[handleStartLearning] Error parsing SSE data:", parseError);
+          setGoalCreationError("Task generation communication error");
+          setIsTaskGenerationLoading(false);
+          eventSource.close();
+        }
+      };
+      
+      eventSource.onerror = (error) => {
+        console.error("[handleStartLearning] SSE error:", error);
+        setGoalCreationError("Task generation failed - connection error");
+        setIsTaskGenerationLoading(false);
+        eventSource.close();
+      };
+      
+    } catch (err) {
+      console.error("[handleStartLearning] Error setting up task generation:", err);
+      setGoalCreationError("Task generation failed: " + (err.message || err));
+      setIsTaskGenerationLoading(false);
+    }
   };
 
   // --- Per-Phase Progress UI ---
@@ -497,7 +642,36 @@ const AssessmentPage = () => {
 
   // Path Selection Component
   const PathSelectionStep = () => {
-    const pathOptions = Object.values(learningPaths);
+    const pathOptions = [
+      {
+        id: "ai-ml",
+        title: "AI & Machine Learning",
+        description: "Build intelligent systems and work with artificial intelligence technologies",
+        difficulty: "advanced",
+        duration: { min: 8, max: 12 }
+      },
+      {
+        id: "fullstack-web",
+        title: "Full Stack Web Development",
+        description: "Create complete web applications from frontend to backend",
+        difficulty: "intermediate",
+        duration: { min: 6, max: 10 }
+      },
+      {
+        id: "cloud-computing",
+        title: "Cloud Computing & DevOps",
+        description: "Deploy and manage applications in cloud environments",
+        difficulty: "intermediate",
+        duration: { min: 6, max: 9 }
+      },
+      {
+        id: "data-science",
+        title: "Data Science & Analytics",
+        description: "Extract insights from data and build predictive models",
+        difficulty: "intermediate",
+        duration: { min: 7, max: 11 }
+      }
+    ];
 
     return (
       <div className="min-h-screen bg-[#111111] text-white">
@@ -631,31 +805,10 @@ const AssessmentPage = () => {
     setMotivation,
     selectedPath,
     handleGoalSetupComplete,
-    assessmentAnswers
+    userProfile
   }) => {
     // Local state for textarea
     const [localPersonalNeeds, setLocalPersonalNeeds] = useState("");
-
-    // Minimal userProfile calculation for UI only
-    function computeUserProfileFromAnswers(answers) {
-      // Defensive: answers is array of indices, must match assessmentOptions
-      if (!Array.isArray(answers) || answers.length < 6) return null;
-      // Map indices to values for each question
-      const getWeight = (idx, qIdx) => {
-        // For each question, higher index = higher value
-        // Scale to 1-5 for display
-        if (idx === -1) return 0;
-        const max = assessmentOptions[qIdx].length - 1;
-        return Math.round(((idx / max) * 4) + 1); // 1-5 scale
-      };
-      return {
-        learningSpeed: getWeight(answers[0], 0),
-        focusCapability: getWeight(answers[1], 1),
-        experienceLevel: getWeight(answers[2], 2),
-        timeCommitment: getWeight(answers[4], 4),
-      };
-    }
-    const userProfile = computeUserProfileFromAnswers(assessmentAnswers);
 
     const handleSubmit = () => {
       if (!timeframe) return;
@@ -669,7 +822,28 @@ const AssessmentPage = () => {
       handleGoalSetupComplete(goals);
     };
 
-    const selectedPathData = learningPaths[selectedPath];
+    const selectedPathData = {
+      "ai-ml": { 
+        title: "AI & Machine Learning",
+        difficulty: "advanced",
+        duration: { min: 8, max: 12 }
+      },
+      "fullstack-web": { 
+        title: "Full Stack Web Development",
+        difficulty: "intermediate",
+        duration: { min: 6, max: 10 }
+      },
+      "cloud-computing": { 
+        title: "Cloud Computing & DevOps",
+        difficulty: "intermediate",
+        duration: { min: 6, max: 9 }
+      },
+      "data-science": { 
+        title: "Data Science & Analytics",
+        difficulty: "intermediate",
+        duration: { min: 7, max: 11 }
+      }
+    }[selectedPath];
 
     return (
       <div className="min-h-screen bg-[#111111] text-white">
@@ -1349,7 +1523,7 @@ const AssessmentPage = () => {
         setMotivation={setMotivation}
         selectedPath={selectedPath}
         handleGoalSetupComplete={handleGoalSetupComplete}
-        assessmentAnswers={assessmentAnswers}
+        userProfile={userProfile}
       />
     );
   }
@@ -1363,12 +1537,11 @@ const AssessmentPage = () => {
   }
 
   if (isTaskGenerationLoading) {
-    // Show per-phase progress UI during task generation
+    // Show all-in-one progress UI during task generation
     return (
       <div className="min-h-screen bg-[#111111] text-white flex flex-col items-center justify-center">
         <div className="w-full max-w-2xl mx-auto p-8">
           <h2 className="text-2xl font-bold mb-4">Generating Your Personalized Tasks</h2>
-          <PerPhaseProgress sseProgress={tasksSse.progress} roadmap={roadmap} />
           <div className="w-full max-w-md mx-auto mb-6" aria-label="AI Progress" role="progressbar" aria-valuenow={Math.round(aiProgress.progress)} aria-valuemin={0} aria-valuemax={100}>
             <div className="relative bg-[#181D24] rounded-full h-5 border border-cyan-400/70 overflow-hidden shadow-xl">
               <div
@@ -1391,7 +1564,7 @@ const AssessmentPage = () => {
             </div>
           </div>
           <div className="text-center text-xs text-gray-500 max-w-md mx-auto mt-4">
-            <p>🎯 Generating daily tasks for each phase. This may take a few minutes.</p>
+            <p>🎯 Generating all tasks at once. This may take a few minutes.</p>
             <p>⏱️ Please do not close this page until complete.</p>
           </div>
         </div>

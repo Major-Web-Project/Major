@@ -198,6 +198,15 @@ export const DailyReportTable = ({
     }
   };
 
+  const getCarryForwardBadge = (task) => {
+    if (!task.wasEverCarried) return null;
+    return (
+      <span className="px-2 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-400/30 flex items-center gap-1">
+        🔁 {task.carriedCount || 1}x carried{task.isCarriedToday ? " (today)" : ""}
+      </span>
+    );
+  };
+
   const getPriorityColor = (priority) => {
     switch (priority) {
       case "high":
@@ -508,11 +517,16 @@ export const DailyReportTable = ({
               combinedTasks.map((task, index) => (
                 <div
                   key={task.id}
-                  className={`border border-gray-200 dark:border-gray-700 rounded-lg transition-all duration-300 ${
+                  className={`border rounded-lg transition-all duration-300 relative overflow-hidden ${
                     selectedTask?.id === task.id ? 'ring-2 ring-blue-500 shadow-lg' : 'hover:shadow-md'
-                  }`}
+                  } ${task.wasEverCarried ? 'border-blue-400/40 dark:border-blue-400/40 bg-blue-500/5' : 'border-gray-200 dark:border-gray-700'}`}
                   style={{ backgroundColor: '#1F2937' }}
                 >
+                  {task.wasEverCarried && (
+                    <div className="absolute top-0 right-0 bg-blue-600 text-white text-[10px] px-2 py-1 rounded-bl-lg font-semibold flex items-center gap-1">
+                      🔁 CF
+                    </div>
+                  )}
                   {/* Task Card Header - Always Visible */}
                   <div
                     onClick={() => handleTaskClick(task)}
@@ -531,7 +545,7 @@ export const DailyReportTable = ({
                           )}
                         </div>
                         
-                        <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-3 mb-3 flex-wrap">
                           <span
                             className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusColor(
                               task.status
@@ -552,11 +566,20 @@ export const DailyReportTable = ({
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             ⏱️ {task.estimatedTime}h
                           </span>
+                          {getCarryForwardBadge(task)}
+                          {task.lastCarriedDate && task.wasEverCarried && (
+                            <span className="text-xs text-gray-500 dark:text-gray-400 italic">carried {new Date(task.lastCarriedDate).toLocaleDateString()}</span>
+                          )}
                         </div>
                         
                         <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-3">
                           {task.description}
                         </p>
+                        {task.wasEverCarried && task.carriedCount > 0 && (
+                          <div className="mb-3 text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-400/30 rounded-lg p-2">
+                            <span className="font-semibold">Carried:</span> {task.carriedCount} time(s){task.lastCarriedDate && ` • last ${new Date(task.lastCarriedDate).toLocaleDateString()}`}
+                          </div>
+                        )}
                         
                         <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                           {task.phase && <span>📊 Phase {task.phase}</span>}

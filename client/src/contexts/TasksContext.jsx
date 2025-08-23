@@ -6,7 +6,6 @@ import React, {
   useEffect,
 } from "react";
 import { apiService } from "../services/api";
-import { aiAssistant } from "../services/aiLearningService";
 import { utcToLocalDateString } from "../utils/dateUtils";
 
 const TasksContext = createContext();
@@ -15,6 +14,7 @@ export function TasksProvider({ children }) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [taskStatistics, setTaskStatistics] = useState(null);
 
   // Normalize task object to ensure consistent structure
   const normalizeTask = useCallback((task) => {
@@ -39,24 +39,94 @@ export function TasksProvider({ children }) {
       isAIGenerated: taskData.isAIGenerated || task.isAIGenerated || false,
       databaseId: task.databaseId || task.id || task._id,
       // Include additional fields for AI tasks
-      resources: taskData.resources || task.resources || [],
+      resources: taskData.resources || task.resources || task.aiMetadata?.resources || [],
       topics: taskData.topics || task.topics || [],
       realWorldApplication: taskData.realWorldApplication || task.realWorldApplication,
       successCriteria: taskData.successCriteria || task.successCriteria || [],
-      phase: taskData.phase || task.phase,
+      phase: taskData.phase || task.phase || task.aiMetadata?.phase,
       sequenceOrder: taskData.sequenceOrder || task.sequenceOrder,
+      ptt: task.ptt || task.aiMetadata?.ptt,
       goal: task.goal,
+      carriedCount: task.carriedCount || taskData.carriedCount || 0,
+      wasEverCarried: task.wasEverCarried || taskData.wasEverCarried || false,
+      lastCarriedDate: task.lastCarriedDate || taskData.lastCarriedDate,
+      isCarriedToday: task.isCarriedToday || taskData.isCarriedToday || false,
       // Keep original data for backward compatibility
       data: taskData,
     };
   }, []);
 
-  // Refresh all tasks from server
+  // NEW: Refresh AI-generated tasks with statistics
+  const refreshAITasks = useCallback(async (goalId) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      if (!goalId) {
+        console.warn("[TasksContext] refreshAITasks called without goalId");
+        setTasks([]);
+        setTaskStatistics(null);
+        return { tasks: [], statistics: null };
+      }
+
+      console.log(`[TasksContext] Fetching AI tasks for goal ${goalId}`);
+      const response = await apiService.getTaskStatsByGoal(goalId);
+      
+
+      const rawTasks = response.data?.tasks || [];
+      const statistics = response.data?.statistics || null;
+
+      // Normalize all tasks
+      const normalizedTasks = rawTasks.map(normalizeTask);
+      setTasks(normalizedTasks);
+
+      // Always include allTasks in statistics for topic stats
+      if (statistics && Array.isArray(normalizedTasks)) {
+        statistics.allTasks = normalizedTasks;
+      }
+      setTaskStatistics(statistics);
+
+      console.log(`[TasksContext] Refreshed AI tasks (goalId: ${goalId}):`, {
+        taskCount: normalizedTasks.length,
+        statistics
+      });
+      
+      // Dispatch event to notify other components that tasks have been updated
+      window.dispatchEvent(new CustomEvent("aiTasksUpdated", {
+        detail: { goalId, tasks: normalizedTasks, statistics }
+      }));
+      
+      return { tasks: normalizedTasks, statistics };
+    } catch (err) {
+      console.error("Failed to refresh AI tasks:", err);
+      setError("Failed to refresh AI tasks");
+      setTasks([]);
+      setTaskStatistics(null);
+      return { tasks: [], statistics: null };
+    } finally {
+      setLoading(false);
+    }
+  }, [normalizeTask]);
+
+  // UPDATED: Refresh all tasks from server (now uses AI endpoints if available)
   const refreshTasks = useCallback(async (goalId = null) => {
     try {
       setLoading(true);
       setError(null);
 
+      // Try to use AI tasks first if goalId is provided
+      if (goalId) {
+        try {
+          const aiResult = await refreshAITasks(goalId);
+          if (aiResult.tasks.length > 0) {
+            return aiResult.tasks;
+          }
+        } catch (aiError) {
+          console.warn("[TasksContext] AI tasks not available, falling back to regular tasks:", aiError);
+        }
+      }
+
+      // Fallback to regular task endpoints
       const response = await apiService.getTasks(goalId);
       const rawTasks = response.data?.tasks || [];
 
@@ -78,7 +148,7 @@ export function TasksProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [normalizeTask]);
+  }, [normalizeTask, refreshAITasks]);
 
   // Get daily tasks using gated sequential logic (for today) or regular date query (for other dates)
   const getDailyTasks = useCallback(
@@ -427,7 +497,9 @@ export function TasksProvider({ children }) {
     tasks,
     loading,
     error,
+    taskStatistics,
     refreshTasks,
+    refreshAITasks,
     getTasksByDate,
     getDailyTasks,
     getAssignedTasks,

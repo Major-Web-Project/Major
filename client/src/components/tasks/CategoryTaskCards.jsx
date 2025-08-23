@@ -161,7 +161,17 @@ export const CategoryTaskCards = ({ tasks, onTaskClick = () => {} }) => {
                                                         <span className={`text-xs ${getPriorityColor(task.priority)}`}>
                                                             {task.priority}
                                                         </span>
+                                                            {task.wasEverCarried && (
+                                                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                                                                    🔁 {task.carriedCount || 1}x
+                                                                </span>
+                                                            )}
                                                     </div>
+                                                    {task.wasEverCarried && task.lastCarriedDate && (
+                                                        <div className="text-[10px] text-gray-400 mt-1 italic">
+                                                            carried {new Date(task.lastCarriedDate).toLocaleDateString()}
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <div className="ml-2">
                                                     {task.status === 'completed' ? (

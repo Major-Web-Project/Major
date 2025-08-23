@@ -90,15 +90,15 @@ const GoalSelector = ({ className = '' }) => {
         whileTap={{ scale: 0.98 }}
         onClick={() => setIsOpen(!isOpen)}
         disabled={isChanging}
-        className="btn-primary btn-md w-full justify-between min-w-[200px]"
+        className="btn-primary w-full justify-between min-w-[200px] h-14 min-h-[56px] px-6 text-base"
+        style={{ height: '62px', minHeight: '62px', fontSize: '1rem' }}
       >
         <div className="flex items-center space-x-2">
           <Target size={18} />
-          <span className="text-sm font-medium">
+          <span className="text-base font-medium">
             {isChanging ? 'Switching...' : (activeGoal?.field || 'Select Goal')}
           </span>
         </div>
-        
         <div className="flex items-center space-x-2">
           {isChanging && <Loader2 size={16} className="animate-spin" />}
           <motion.div
@@ -108,8 +108,6 @@ const GoalSelector = ({ className = '' }) => {
             <ChevronDown size={16} />
           </motion.div>
         </div>
-
-
       </motion.button>
 
       {/* Dropdown Menu */}

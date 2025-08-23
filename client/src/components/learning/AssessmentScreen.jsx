@@ -1,10 +1,7 @@
 import React, { useState } from "react";
 import { Card, CardContent } from "../ui/card";
 import { Button } from "../ui/button";
-import {
-  assessmentQuestions,
-  aiAssistant,
-} from "../../services/aiLearningService";
+import { assessmentQuestions } from "../../services/aiLearningService";
 
 export const AssessmentScreen = ({ onComplete }) => {
   const [currentSection, setCurrentSection] = useState(0);
@@ -69,7 +66,73 @@ export const AssessmentScreen = ({ onComplete }) => {
   };
 
   const completeAssessment = (allResponses) => {
-    onComplete(allResponses);
+    // Calculate user profile from responses
+    const calculateProfile = (responses) => {
+      const categories = {
+        learningSpeed: 0,
+        focusCapability: 0,
+        experienceLevel: 0,
+        timeCommitment: 0,
+        motivation: 0
+      };
+      
+      let counts = {
+        learningSpeed: 0,
+        focusCapability: 0, 
+        experienceLevel: 0,
+        timeCommitment: 0,
+        motivation: 0
+      };
+
+      responses.forEach(response => {
+        const weight = response.weight || 1;
+        
+        switch(response.category) {
+          case 'learningStyle':
+          case 'learningFormat':
+            categories.learningSpeed += weight;
+            counts.learningSpeed++;
+            break;
+          case 'independence':
+            categories.focusCapability += weight;
+            counts.focusCapability++;
+            break;
+          case 'experienceLevel':
+            categories.experienceLevel += weight;
+            counts.experienceLevel++;
+            break;
+          case 'timeCommitment':
+          case 'consistency':
+            categories.timeCommitment += weight;
+            counts.timeCommitment++;
+            break;
+          case 'motivation':
+            categories.motivation += weight;
+            counts.motivation++;
+            break;
+        }
+      });
+
+      // Calculate averages
+      Object.keys(categories).forEach(key => {
+        if (counts[key] > 0) {
+          categories[key] = categories[key] / counts[key];
+        }
+      });
+
+      return {
+        learningSpeed: Math.round(categories.learningSpeed * 10) / 10,
+        focusCapability: Math.round(categories.focusCapability * 10) / 10,
+        experienceLevel: Math.round(categories.experienceLevel * 10) / 10,
+        timeCommitment: Math.round(categories.timeCommitment * 10) / 10,
+        motivation: Math.round(categories.motivation * 10) / 10,
+        strengths: [],
+        challenges: []
+      };
+    };
+
+    const userProfile = calculateProfile(allResponses);
+    onComplete(userProfile, allResponses);
   };
 
   const currentQuestionNumber = sections

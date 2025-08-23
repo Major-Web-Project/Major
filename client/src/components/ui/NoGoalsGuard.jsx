@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Target, Plus, AlertCircle, Wifi, WifiOff } from 'lucide-react';
@@ -8,23 +8,27 @@ import Button from './button.jsx';
 
 const NoGoalsGuard = ({ children }) => {
   const navigate = useNavigate();
-  const { hasGoals, isLoadingGoals, error, fetchGoals, isInitialized } = useGoalStore();
+  const { hasGoals, isLoadingGoals, error, initializeGoals, isInitialized } = useGoalStore();
   const { isAuthenticated, isAuthChecked } = useAuthStore();
 
-  // Proactively fetch goals on mount when authenticated
-  const attemptedRef = useRef(false);
+  // Simple initialization - fetch goals once when component mounts if needed
+  const [hasAttemptedInit, setHasAttemptedInit] = useState(false);
+  
   useEffect(() => {
-    if (!attemptedRef.current && isAuthChecked && isAuthenticated && !isLoadingGoals) {
-      // If goals not initialized or empty, fetch them
-      if (!isInitialized || !hasGoals()) {
-        attemptedRef.current = true;
-        fetchGoals();
+    const init = async () => {
+      if (isAuthChecked && isAuthenticated && !hasAttemptedInit) {
+        setHasAttemptedInit(true);
+        if (!isInitialized) {
+          await initializeGoals();
+        }
       }
-    }
-  }, [isAuthChecked, isAuthenticated, isLoadingGoals, isInitialized, hasGoals, fetchGoals]);
+    };
+    
+    init();
+  }, [isAuthChecked, isAuthenticated, hasAttemptedInit, isInitialized, initializeGoals]);
 
-  // Show loading state while checking authentication or goals
-  if (!isAuthChecked || isLoadingGoals) {
+  // Show loading state while checking authentication or initializing goals
+  if (!isAuthChecked || (isAuthenticated && !hasAttemptedInit) || isLoadingGoals) {
     return (
       <div className="min-h-screen bg-[#111111] flex items-center justify-center">
         <div className="text-center">
