@@ -81,6 +81,21 @@ const TaskSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // AI-generated task metadata
+    aiMetadata: {
+      ptt: { type: String }, // Phase-Topic-Task identifier (e.g., "001")
+      phase: { type: Number }, // Phase number
+      topic: { type: Number }, // Topic number
+      task: { type: Number }, // Task number
+      resources: [
+        {
+          type: { type: String },
+          title: { type: String },
+          url: { type: String },
+        },
+      ],
+      originalDuration: { type: String }, // Original duration string from AI
+    },
     resources: [
       {
         type: {
@@ -138,6 +153,29 @@ const TaskSchema = new mongoose.Schema(
       },
       required: false, // Not required for queued tasks
     },
+    // --- Simplified Carry Forward Tracking (single document) ---
+    // Total number of times this task has been carried (not completed by end of day)
+    carriedCount: {
+      type: Number,
+      default: 0,
+    },
+    // Flag set true if this task has been carried at least once
+    wasEverCarried: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+    // The last date (start-of-day) when the task was carried forward
+    lastCarriedDate: {
+      type: Date,
+      index: true,
+    },
+    // Whether the task is considered "active for today" (assignedDate adjusted)
+    isCarriedToday: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
     phase: {
       type: Number,
       default: 1,
@@ -193,6 +231,8 @@ TaskSchema.index({ goal: 1, scheduledDate: 1 });
 // Gated Sequential Task System indexes
 TaskSchema.index({ user: 1, goal: 1, status: 1, sequenceOrder: 1 });
 TaskSchema.index({ goal: 1, status: 1, sequenceOrder: 1 });
+// Carry Forward indexes
+TaskSchema.index({ user: 1, goal: 1, wasEverCarried: 1 });
 
 // Virtual for formatted task data (for backward compatibility)
 TaskSchema.virtual("formattedData").get(function () {
@@ -225,6 +265,10 @@ TaskSchema.virtual("formattedData").get(function () {
     sequenceOrder: this.sequenceOrder,
     assignedDate: this.assignedDate,
     goal: this.goal,
+    carriedCount: this.carriedCount,
+    wasEverCarried: this.wasEverCarried,
+    lastCarriedDate: this.lastCarriedDate,
+    isCarriedToday: this.isCarriedToday,
     data: {
       ...this.data,
       title: this.title,
@@ -250,6 +294,10 @@ TaskSchema.virtual("formattedData").get(function () {
       submissionLink: this.submissionLink,
       submittedAt: this.submittedAt,
       actualTime: this.actualTime,
+      carriedCount: this.carriedCount,
+      wasEverCarried: this.wasEverCarried,
+      lastCarriedDate: this.lastCarriedDate,
+      isCarriedToday: this.isCarriedToday,
     },
   };
 });

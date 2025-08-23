@@ -44,6 +44,11 @@ const GoalSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.Mixed,
       default: {},
     },
+    // Raw AI-generated task output (delimited string)
+    taskPromptOutput: {
+      type: String,
+      default: "",
+    },
     // User profile data used for task generation
     userProfile: {
       type: mongoose.Schema.Types.Mixed,
@@ -81,12 +86,23 @@ const GoalSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    completedTaskIds: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "Task",
-      },
-    ],
+    // 5D tasks matrix (phases -> topics -> tasks -> slot[title|description|resources] -> strings)
+    // Phase-wise completed task IDs: [{ phase: Number, topic: String, taskIds: [ObjectId] }]
+    completedTaskIds: {
+      type: [
+        {
+          phase: { type: Number, required: true },
+          topic: { type: String, required: false },
+          taskIds: [
+            {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "Task",
+            },
+          ],
+        },
+      ],
+      default: [],
+    },
   },
   {
     timestamps: true,

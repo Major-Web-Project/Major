@@ -10,6 +10,58 @@ import { Readable } from "stream";
 import FormData from "form-data";
 import axios from "axios";
 
+// ---------------- Carry Forward Helper Logic (new) ----------------
+// Creates carry-forward instances for any incomplete tasks from previous days
+// so user can act on them today without editing past-day originals.
+export async function ensureCarryForward(userId, goalId) {
+  const tz = "Asia/Kolkata";
+  const startOfToday = moment().tz(tz).startOf("day").toDate();
+  try {
+    const candidates = await Task.find({
+      user: userId,
+      goal: goalId,
+      status: { $in: ["pending", "in_progress"] },
+    });
+    let updated = 0;
+    for (const task of candidates) {
+      // If the task was assigned before today and still incomplete, mark as carried
+      if (task.assignedDate < startOfToday) {
+        task.carriedCount = (task.carriedCount || 0) + 1;
+        task.wasEverCarried = true;
+        task.lastCarriedDate = startOfToday;
+        task.isCarriedToday = true;
+        // Move its assignedDate forward to today so queries for today pick it up
+        task.assignedDate = startOfToday;
+        if (!task.scheduledDate || task.scheduledDate < startOfToday) {
+          task.scheduledDate = startOfToday;
+        }
+        // Ensure status is at least pending (don't resurrect cancelled)
+        if (task.status === "pending" || task.status === "in_progress") {
+          // no change
+        }
+        // Mirror into legacy data field
+        task.data = {
+          ...task.data,
+          carriedCount: task.carriedCount,
+          wasEverCarried: task.wasEverCarried,
+          lastCarriedDate: task.lastCarriedDate,
+          isCarriedToday: task.isCarriedToday,
+          assignedDate: task.assignedDate,
+        };
+        await task.save();
+        updated += 1;
+      } else if (task.assignedDate >= startOfToday) {
+        // If already today, ensure flag reflects current state
+        task.isCarriedToday = false; // newly assigned or already today without carry
+        await task.save();
+      }
+    }
+    return { evaluated: candidates.length, updated };
+  } catch (e) {
+    return { evaluated: 0, updated: 0, error: e.message };
+  }
+}
+
 // Create a new task (for POST /api/tasks)
 export const createTask = async (req, res) => {
   try {
@@ -78,11 +130,14 @@ export const getDailyTask = async (userId, goalId) => {
       today.getDate(),
       23,
       59,
+      59,
       999
     );
 
-    // Get ALL tasks assigned for today (pending, in_progress, completed)
-    // Sort by sequenceOrder descending to show newest tasks first (stack behavior)
+    // Normalize any past incomplete tasks into today
+    await ensureCarryForward(userId, goalId);
+
+    // Get ALL tasks assigned for today (after normalization)
     const todaysTasks = await Task.find({
       user: userId,
       goal: goalId,
@@ -126,16 +181,36 @@ export const requestNextTask = async (userId, goalId) => {
       throw new Error("User ID and Goal ID are required");
     }
 
-    // Check if user has any pending tasks - they must complete current tasks first
-    const pendingTasks = await Task.find({
+    // Normalize carry-forward state first
+    await ensureCarryForward(userId, goalId);
+
+    // Block new task generation if ANY task assigned for today is not completed
+    const today = new Date();
+    const startOfDay = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate()
+    );
+    const endOfDay = new Date(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+      23,
+      59,
+      59,
+      999
+    );
+
+    const todaysIncompleteTasks = await Task.find({
       user: userId,
       goal: goalId,
-      status: "pending",
+      assignedDate: { $gte: startOfDay, $lte: endOfDay },
+      status: { $in: ["pending", "in_progress"] },
     });
 
-    if (pendingTasks.length > 0) {
+    if (todaysIncompleteTasks.length > 0) {
       throw new Error(
-        "You must complete your current pending tasks before requesting new ones"
+        "Complete previous pending tasks (carried forward) before requesting a new one"
       );
     }
 
@@ -236,9 +311,32 @@ export const updateTask = async (req, res) => {
 
     // SEQUENTIAL LOGIC: Task completion (no auto-assignment)
     if (oldStatus !== "completed" && task.status === "completed" && task.goal) {
-      // No auto-assignment here - tasks are only assigned:
-      // 1. At midnight (if no pending tasks)
-      // 2. When user clicks "Generate New Task"
+      // PHASE/TOPIC-WISE: Add this task's _id to the correct phase/topic in goal.completedTaskIds
+      const Goal = (await import("../models/Goal.js")).default;
+      const goalDoc = await Goal.findById(task.goal);
+      if (goalDoc) {
+        const phase = task.phase || 1;
+        const topic =
+          task.topics && task.topics.length > 0 ? task.topics[0] : undefined;
+        let found = false;
+        for (let entry of goalDoc.completedTaskIds) {
+          if (entry.phase === phase && (!topic || entry.topic === topic)) {
+            if (!entry.taskIds.some((id) => id.equals(task._id))) {
+              entry.taskIds.push(task._id);
+            }
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          goalDoc.completedTaskIds.push({
+            phase,
+            topic,
+            taskIds: [task._id],
+          });
+        }
+        await goalDoc.save();
+      }
     }
 
     // Update legacy data field for backward compatibility
@@ -358,6 +456,20 @@ export const getTasksByDate = async (req, res) => {
           success: false,
           message: "Invalid goal ID format",
         });
+      }
+
+      // If the requested date is today ensure carry-forward instances are created
+      const todayLocal = moment().tz("Asia/Kolkata").startOf("day").toDate();
+      const requestedIsToday = queryDate.getTime() === todayLocal.getTime();
+      if (requestedIsToday) {
+        try {
+          await ensureCarryForward(req.user._id, goalId); // logging inside
+        } catch (cfErr) {
+          console.warn(
+            "[getTasksByDate] ensureCarryForward failed:",
+            cfErr.message
+          );
+        }
       }
 
       // SEQUENTIAL LOGIC: Only show tasks that have been assigned to this specific date

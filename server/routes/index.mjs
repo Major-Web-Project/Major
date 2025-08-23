@@ -8,6 +8,7 @@ import achieverRoutes from "./achieverRoutes.js";
 import testimonialRoutes from "./testimonialRoutes.js";
 import aiRoutes from "./aiRoutes.js";
 import assessmentRoutes from "./assessmentRoutes.js";
+// ...existing code...
 
 const router = express.Router();
 
@@ -20,6 +21,7 @@ router.use("/achievers", achieverRoutes);
 router.use("/testimonials", testimonialRoutes);
 router.use("/ai", aiRoutes);
 router.use("/assessment", assessmentRoutes);
+// ...existing code...
 
 //
 // Simple health check endpoint

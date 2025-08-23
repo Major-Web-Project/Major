@@ -16,7 +16,6 @@ import apiRoutes from "./routes/index.mjs";
 import errorHandler from "./middleware/errorHandler.js";
 import notFound from "./middleware/notFound.js";
 import { startTaskScheduler } from "./services/taskScheduler.js";
-import "./services/taskGenerationCleanup.js";
 console.log("✅ All imports loaded successfully");
 
 const app = express();
