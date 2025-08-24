@@ -171,7 +171,7 @@ class FileCheckView(APIView):
         }
 
         try:
-            resp = requests.post(url, headers=headers, json=payload, timeout=45)
+            resp = requests.post(url, headers=headers, json=payload, timeout=120)  # Increased timeout to 120 seconds
             if resp.status_code != 200:
                 print(f"[FileCheck] Gemini API error. Status: {resp.status_code}, Body: {resp.text}")
                 return Response({'error': 'Gemini API error', 'details': resp.text}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
