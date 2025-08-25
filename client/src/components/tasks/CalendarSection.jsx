@@ -124,7 +124,7 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
                 const taskGoalId = task.goal?._id || task.goal;
                 const belongsToActiveGoal = taskGoalId === activeGoalId;
                 if (!belongsToActiveGoal && taskGoalId) {
-                  console.warn(`[CalendarSection] Filtering out task "${task.name}" - belongs to goal ${taskGoalId}, not ${activeGoalId}`);
+                  // Filter out tasks that don't belong to the active goal
                 }
                 return belongsToActiveGoal || !taskGoalId; // Include legacy tasks without goal
               });
@@ -180,7 +180,7 @@ export const CalendarSection = ({ selectedDate, onDateSelect }) => {
         }
       } catch (err) {
         if (err.name !== "AbortError" && !abortController.signal.aborted) {
-          console.error("Failed to load calendar data:", err);
+          // Handle calendar data loading error silently
         }
       } finally {
         if (!abortController.signal.aborted) {

@@ -39,15 +39,6 @@ export async function ensureCarryForward(userId, goalId) {
         if (task.status === "pending" || task.status === "in_progress") {
           // no change
         }
-        // Mirror into legacy data field
-        task.data = {
-          ...task.data,
-          carriedCount: task.carriedCount,
-          wasEverCarried: task.wasEverCarried,
-          lastCarriedDate: task.lastCarriedDate,
-          isCarriedToday: task.isCarriedToday,
-          assignedDate: task.assignedDate,
-        };
         await task.save();
         updated += 1;
       } else if (task.assignedDate >= startOfToday) {

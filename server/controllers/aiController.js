@@ -869,7 +869,7 @@ User Chosen Field: ${fieldString}
 
 **INSTRUCTIONS:**
 1. Analyze the user's answers and personalize string to infer their level, time commitment, strengths, weaknesses, learning style, and goals. Make smart decisions based on the user's responses to each question. Do not rely on any backend-calculated variables—use only the information provided above.
-2. The user's chosen field (above) is one of: "Data Structures (DSA)", "Full Stack Development", "Cloud Computing", "AIML". You must generate the roadmap and assign phases for this field only. Do NOT include topics from other fields.
+2. The user has chosen the field "${fieldString}". You must generate a comprehensive, professional roadmap specifically for this field. Focus exclusively on topics, skills, and technologies relevant to "${fieldString}". Do NOT include content from unrelated fields.
 3. For each phase, provide a detailed breakdown of topics, subtopics, and projects, progressing logically from basics to advanced, and matching the chosen field. Ensure all key points and skills relevant to the field are covered.
 4. Dynamically calculate the duration of each phase so that the sum matches the user's total duration (${
     months ?? ""

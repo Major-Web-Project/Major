@@ -307,7 +307,7 @@ export const TasksScreen = ({
   // Listen for real-time task updates
   useEffect(() => {
     const handleTasksUpdated = async (event) => {
-      console.log("[TasksScreen] Received task update event:", event.detail);
+      // Handle task update events
       
       // If new tasks were generated or added, refresh the task list
       if (event.detail?.action === "tasksGenerated" || 
@@ -315,7 +315,7 @@ export const TasksScreen = ({
         
         // Only refresh if it's for the current active goal
         if (event.detail?.goalId === activeGoalId || !event.detail?.goalId) {
-          console.log("[TasksScreen] Refreshing tasks due to:", event.detail.action);
+          // Refresh tasks due to event action
           
           try {
             // Refresh tasks from the context
@@ -325,7 +325,7 @@ export const TasksScreen = ({
             // which will trigger the useEffect above to update allTasks
             
           } catch (error) {
-            console.error("[TasksScreen] Error refreshing tasks:", error);
+            // Handle task refresh error silently
           }
         }
       }

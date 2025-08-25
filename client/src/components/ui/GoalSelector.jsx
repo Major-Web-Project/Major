@@ -37,7 +37,7 @@ const GoalSelector = ({ className = '' }) => {
       await new Promise(resolve => setTimeout(resolve, 150));
       setActiveGoal(goalId);
     } catch (error) {
-      console.error('Error changing goal:', error);
+      // Handle goal change error silently
     } finally {
       // Keep loading state for a bit longer to show the transition
       setTimeout(() => setIsChanging(false), 500);

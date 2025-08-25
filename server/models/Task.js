@@ -212,11 +212,6 @@ const TaskSchema = new mongoose.Schema(
     actualTime: {
       type: Number, // actual time spent in hours
     },
-    // Legacy data field for backward compatibility
-    data: {
-      type: mongoose.Schema.Types.Mixed,
-      default: {},
-    },
   },
   {
     timestamps: true,

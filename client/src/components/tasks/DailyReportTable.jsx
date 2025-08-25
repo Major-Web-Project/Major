@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "../ui/button";
 import { useTasks } from "../../contexts/TasksContext";
 import { useGoalStore } from "../../store/goalStore.js";
@@ -107,7 +107,7 @@ export const DailyReportTable = ({
           const taskGoalId = task.goal?._id || task.goal;
           const belongsToActiveGoal = taskGoalId === activeGoalId;
           if (!belongsToActiveGoal && taskGoalId) {
-            console.warn(`[DailyReportTable] Filtering out task "${task.name}" - belongs to goal ${taskGoalId}, not ${activeGoalId}`);
+            // Filter out tasks that don't belong to the active goal
           }
           return belongsToActiveGoal || !taskGoalId;
         });
@@ -115,7 +115,7 @@ export const DailyReportTable = ({
         setCombinedTasks(filteredTasks);
         setIsGatedSequential(gatedSequential);
       } catch (error) {
-        console.error(`[DailyReportTable] Error fetching tasks:`, error);
+        // Handle task fetch error silently
         setCombinedTasks([]);
         setIsGatedSequential(false);
       }
@@ -123,66 +123,67 @@ export const DailyReportTable = ({
     fetchTasks();
   }, [selectedDate, activeGoalId, getTasksByDate, getDailyTasks]);
 
-  // Listen for real-time task updates
-  useEffect(() => {
-    const handleTasksUpdated = async (event) => {
-      console.log("[DailyReportTable] Received task update event:", event.detail);
+  // Define handleTaskUpdate outside of useEffect to avoid circular dependency
+  const handleTaskUpdate = useCallback(async (event) => {
+    // Handle task update events
+    
+    // If new tasks were generated or added, refresh the task list
+    if (event.detail?.action === "tasksGenerated" || 
+        event.detail?.action === "newTasksAdded" ||
+        event.detail?.action === "completed") {
       
-      // If new tasks were generated or added, refresh the task list
-      if (event.detail?.action === "tasksGenerated" || 
-          event.detail?.action === "newTasksAdded" ||
-          event.detail?.action === "completed") {
+      // Only refresh if it's for the current active goal
+      if (event.detail?.goalId === activeGoalId || !event.detail?.goalId) {
+        // Refresh tasks due to event action
         
-        // Only refresh if it's for the current active goal
-        if (event.detail?.goalId === activeGoalId || !event.detail?.goalId) {
-          console.log("[DailyReportTable] Refreshing tasks due to:", event.detail.action);
+        try {
+          // Check if this is today's date
+          const today = new Date();
+          const isToday = selectedDate.toDateString() === today.toDateString();
           
-          try {
-            // Check if this is today's date
-            const today = new Date();
-            const isToday = selectedDate.toDateString() === today.toDateString();
-            
-            let tasks;
-            let gatedSequential = false;
-            
-            if (isToday) {
-              // For today, get the current active task(s) from sequential system
-              tasks = await getDailyTasks(activeGoalId);
-              gatedSequential = true;
-            } else {
-              // For other dates, get tasks that have been assigned to that specific date
-              tasks = await getTasksByDate(selectedDate, activeGoalId);
-            }
-            
-            // Filter tasks for the active goal
-            const filteredTasks = tasks.filter(task => {
-              const taskGoalId = task.goal?._id || task.goal;
-              const belongsToActiveGoal = taskGoalId === activeGoalId;
-              return belongsToActiveGoal || !taskGoalId;
-            });
-            
-            setCombinedTasks(filteredTasks);
-            setIsGatedSequential(gatedSequential);
-            
-            // Show notification for new tasks
-            if (event.detail?.action === "tasksGenerated" || event.detail?.action === "newTasksAdded") {
-              setTaskUpdateNotification("New tasks have been added! 🎉");
-              setTimeout(() => setTaskUpdateNotification(null), 3000);
-            }
-            
-          } catch (error) {
-            console.error("[DailyReportTable] Error refreshing tasks:", error);
+          let tasks;
+          let gatedSequential = false;
+          
+          if (isToday) {
+            // For today, get the current active task(s) from sequential system
+            tasks = await getDailyTasks(activeGoalId);
+            gatedSequential = true;
+          } else {
+            // For other dates, get tasks that have been assigned to that specific date
+            tasks = await getTasksByDate(selectedDate, activeGoalId);
           }
+          
+          // Filter tasks for the active goal
+          const filteredTasks = tasks.filter(task => {
+            const taskGoalId = task.goal?._id || task.goal;
+            const belongsToActiveGoal = taskGoalId === activeGoalId;
+            return belongsToActiveGoal || !taskGoalId;
+          });
+          
+          setCombinedTasks(filteredTasks);
+          setIsGatedSequential(gatedSequential);
+          
+          // Show notification for new tasks
+          if (event.detail?.action === "tasksGenerated" || event.detail?.action === "newTasksAdded") {
+            setTaskUpdateNotification("New tasks have been added! 🎉");
+            setTimeout(() => setTaskUpdateNotification(null), 3000);
+          }
+          
+        } catch (error) {
+          // Handle task refresh error silently
         }
       }
-    };
+    }
+  }, [selectedDate, activeGoalId, getDailyTasks, getTasksByDate]);
 
-    window.addEventListener("tasksUpdated", handleTasksUpdated);
+  // Listen for real-time task updates
+  useEffect(() => {
+    window.addEventListener("tasksUpdated", handleTaskUpdate);
 
     return () => {
-      window.removeEventListener("tasksUpdated", handleTasksUpdated);
+      window.removeEventListener("tasksUpdated", handleTaskUpdate);
     };
-  }, [selectedDate, activeGoalId, getTasksByDate, getDailyTasks]);
+  }, [handleTaskUpdate]);
 
   // Helper functions
   const getStatusColor = (status) => {
@@ -306,7 +307,7 @@ export const DailyReportTable = ({
         setTimeout(() => setTaskUpdateNotification(null), 5000);
       }, 1000);
     } catch (error) {
-      console.error("Failed to refresh tasks after completion:", error);
+      // Handle task completion refresh error silently
       // Fallback: force a page refresh if the update fails
       setTimeout(() => {
         window.location.reload();
@@ -331,14 +332,13 @@ export const DailyReportTable = ({
         alert("No more tasks available in the sequence");
       }
     } catch (error) {
-      console.error("Failed to request next task:", error);
-      console.error("Error response:", error.response);
+      // Handle request next task error
       
       // Provide more specific error messages
       let errorMessage = "Failed to request next task";
       if (error.response?.status === 400) {
         errorMessage = error.response?.data?.message || "Bad request - please check your goal selection";
-        console.error("400 Error details:", error.response.data);
+        // Handle 400 error details silently
       } else if (error.response?.status === 401) {
         errorMessage = "Please log in again";
       } else if (error.response?.status >= 500) {
@@ -610,7 +610,7 @@ export const DailyReportTable = ({
                               try {
                                 await viewTaskSubmission(task.id);
                               } catch (error) {
-                                console.error("Failed to view submission:", error);
+                                // Handle submission view error silently
                                 alert("Failed to view submission: " + error.message);
                               }
                             }}

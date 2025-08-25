@@ -61,7 +61,6 @@ router.get("/daily", async (req, res) => {
       isGatedSequential: true,
     });
   } catch (error) {
-    console.error("[GET /api/tasks/daily] Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch daily tasks",
@@ -94,7 +93,6 @@ router.get("/assigned", async (req, res) => {
       message: "Only showing assigned tasks (hiding queued tasks)",
     });
   } catch (error) {
-    console.error("[GET /api/tasks/assigned] Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch assigned tasks",
@@ -137,10 +135,10 @@ router.post("/request-next", async (req, res) => {
           : "No more tasks available",
     });
   } catch (error) {
-    console.error("[POST /api/tasks/request-next] Error:", error);
-    res.status(400).json({
+    res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Failed to request next task",
+      error: error.message,
     });
   }
 });
@@ -241,129 +239,6 @@ function getMimeType(filename) {
   };
   return mimeTypes[ext] || "application/octet-stream";
 }
-
-// Debug endpoint to check sequential task system
-router.get("/debug-sequential-system", protect, async (req, res) => {
-  try {
-    const { goalId } = req.query;
-
-    if (!goalId) {
-      return res.status(400).json({
-        success: false,
-        message: "Goal ID is required",
-      });
-    }
-
-    // Get all tasks for this goal
-    const allTasks = await Task.find({
-      user: req.user._id,
-      goal: goalId,
-    }).sort({ sequenceOrder: 1 });
-
-    // Categorize tasks
-    const queuedTasks = allTasks.filter((t) => t.status === "queued");
-    const pendingTasks = allTasks.filter((t) => t.status === "pending");
-    const completedTasks = allTasks.filter((t) => t.status === "completed");
-    const assignedTasks = allTasks.filter((t) => t.assignedDate);
-
-    res.json({
-      success: true,
-      data: {
-        totalTasks: allTasks.length,
-        queuedTasks: queuedTasks.length,
-        pendingTasks: pendingTasks.length,
-        completedTasks: completedTasks.length,
-        assignedTasks: assignedTasks.length,
-        taskBreakdown: {
-          queued: queuedTasks.map((t) => ({
-            id: t._id,
-            title: t.title,
-            sequenceOrder: t.sequenceOrder,
-            status: t.status,
-            assignedDate: t.assignedDate,
-          })),
-          pending: pendingTasks.map((t) => ({
-            id: t._id,
-            title: t.title,
-            sequenceOrder: t.sequenceOrder,
-            status: t.status,
-            assignedDate: t.assignedDate,
-          })),
-          completed: completedTasks.map((t) => ({
-            id: t._id,
-            title: t.title,
-            sequenceOrder: t.sequenceOrder,
-            status: t.status,
-            assignedDate: t.assignedDate,
-          })),
-        },
-      },
-    });
-  } catch (error) {
-    console.error("Error analyzing sequential system:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to analyze sequential system",
-      error: error.message,
-    });
-  }
-});
-
-// Debug endpoint to check task-goal relationships
-router.get("/debug-goal-relationships", protect, async (req, res) => {
-  try {
-    const { Goal } = await import("../models/Goal.js");
-
-    // Get all tasks for this user
-    const allTasks = await Task.find({ user: req.user._id });
-
-    // Get all goals for this user
-    const allGoals = await Goal.find({ user: req.user._id });
-
-    // Analyze task-goal relationships
-    const tasksWithGoal = allTasks.filter((task) => task.goal);
-    const tasksWithoutGoal = allTasks.filter((task) => !task.goal);
-
-    const goalStats = {};
-    allGoals.forEach((goal) => {
-      const goalTasks = allTasks.filter(
-        (task) => task.goal && task.goal.toString() === goal._id.toString()
-      );
-      goalStats[goal._id] = {
-        goalName: goal.field,
-        taskCount: goalTasks.length,
-        tasks: goalTasks.map((t) => ({
-          id: t._id,
-          name: t.title,
-          status: t.status,
-        })),
-      };
-    });
-
-    res.json({
-      success: true,
-      data: {
-        totalTasks: allTasks.length,
-        totalGoals: allGoals.length,
-        tasksWithGoal: tasksWithGoal.length,
-        tasksWithoutGoal: tasksWithoutGoal.length,
-        goalStats,
-        orphanTasks: tasksWithoutGoal.map((t) => ({
-          id: t._id,
-          name: t.title,
-          status: t.status,
-        })),
-      },
-    });
-  } catch (error) {
-    console.error("Error analyzing task-goal relationships:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to analyze task-goal relationships",
-      error: error.message,
-    });
-  }
-});
 
 // Import migration utilities
 import {

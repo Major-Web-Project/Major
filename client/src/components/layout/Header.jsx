@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, User, LogOut } from 'lucide-react';
-import Button from '../ui/Button';
+import { Button } from "../ui/button";
 
 const Header = ({ user, isAuthenticated, handleLogout }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -504,7 +504,7 @@ export const LearningDashboardScreen = ({
 
       // If new tasks were generated, refresh the entire task list
       if (event.detail?.action === "tasksGenerated" || event.detail?.action === "newTasksAdded") {
-        console.log("New tasks generated, refreshing dashboard...");
+        // Refresh dashboard after task generation
         
         // Get the active goal to refresh tasks
         const activeGoal = getActiveGoal();
@@ -512,9 +512,9 @@ export const LearningDashboardScreen = ({
           try {
             // Refresh tasks using TasksContext instead of aiAssistant
             await refreshTasks(activeGoal._id);
-            console.log("Refreshed tasks after generation");
+            // Tasks refreshed successfully after generation
           } catch (error) {
-            console.error("Error refreshing tasks after generation:", error);
+            // Handle task refresh error silently
           }
         }
       }
@@ -639,7 +639,6 @@ export const LearningDashboardScreen = ({
       // Redirect to dashboard page
       window.location.href = "/dashboard";
     } catch (error) {
-      console.error("Error deleting goal:", error);
       alert("Failed to delete goal. Please try again.");
     }
   };
@@ -650,7 +649,6 @@ export const LearningDashboardScreen = ({
       alert("Congratulations! You've completed your learning goal!");
       // You might want to redirect to a completion page or reset the app
     } catch (error) {
-      console.error("Error completing goal:", error);
       alert("Failed to complete goal. Please try again.");
     }
   };

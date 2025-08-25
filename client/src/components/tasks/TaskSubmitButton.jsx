@@ -74,7 +74,6 @@ export const TaskSubmitButton = ({
     // Ensure we have a valid taskId
     const taskId = task?.id || task?._id;
     if (!taskId) {
-      console.error("[TaskSubmitButton] No valid taskId found:", task);
       alert("Task ID not found. Please refresh the page and try again.");
       return;
     }
@@ -165,7 +164,6 @@ export const TaskSubmitButton = ({
       }
       await viewTaskSubmission(task.id);
     } catch (error) {
-      console.error("[TaskSubmitButton] Failed to view submission:", error);
       const errorMessage = error.message || "Failed to view submission file.";
       alert(`Unable to open submission file: ${errorMessage}`);
     }

@@ -318,11 +318,22 @@ const AssessmentPage = () => {
     console.log('[AssessmentPage] Assessment completed with:', { profile, responses });
     setUserProfile(profile);
 
+    // Get path metadata for backend
+    const selectedPathData = learningPaths[selectedPath];
+    
     // Save detailed assessment data for future AI model integration
     const assessmentData = {
       userProfile: profile,
       responses: responses,
       selectedPath: selectedPath,
+      pathMetadata: selectedPathData ? {
+        title: selectedPathData.title,
+        description: selectedPathData.description,
+        difficulty: selectedPathData.difficulty,
+        category: selectedPathData.category,
+        tags: selectedPathData.tags,
+        estimatedDuration: selectedPathData.duration
+      } : null,
       timestamp: new Date().toISOString(),
       completedSections: Object.keys(assessmentQuestions),
       totalQuestions: Object.values(assessmentQuestions).reduce(
@@ -426,11 +437,22 @@ const AssessmentPage = () => {
         assessmentData.userId = user._id;
       }
       
+      // Get the selected path details
+      const selectedPathData = learningPaths[selectedPath];
+      
       const saveData = {
         answers: assessmentAnswers,
         personalize: goals.personalize || "",
         duration: months,
         path: goals.learningPath || selectedPath || "",
+        pathMetadata: selectedPathData ? {
+          title: selectedPathData.title,
+          description: selectedPathData.description,
+          difficulty: selectedPathData.difficulty,
+          category: selectedPathData.category,
+          tags: selectedPathData.tags,
+          estimatedDuration: selectedPathData.duration
+        } : null,
         token,
         userId: user && user._id ? user._id : undefined,
       };
@@ -581,6 +603,23 @@ const AssessmentPage = () => {
     }
   };
 
+  // Helper function to get emoji for path
+  const getPathEmoji = (pathId) => {
+    const emojiMap = {
+      "ai-ml": "🤖",
+      "fullstack-web": "💻",
+      "cloud-computing": "☁️",
+      "data-science": "📊",
+      "mobile-development": "📱",
+      "cybersecurity": "🛡️",
+      "data-structures-algorithms": "📚",
+      "system-design": "🏗️",
+      "software-engineering": "🧑‍💻",
+      "stock-market-trading": "💹"
+    };
+    return emojiMap[pathId] || "🎯";
+  };
+
   // --- Per-Phase Progress UI ---
   const PerPhaseProgress = ({ sseProgress, roadmap }) => {
     // Parse phase progress from SSE stage text
@@ -642,36 +681,20 @@ const AssessmentPage = () => {
 
   // Path Selection Component
   const PathSelectionStep = () => {
-    const pathOptions = [
-      {
-        id: "ai-ml",
-        title: "AI & Machine Learning",
-        description: "Build intelligent systems and work with artificial intelligence technologies",
-        difficulty: "advanced",
-        duration: { min: 8, max: 12 }
-      },
-      {
-        id: "fullstack-web",
-        title: "Full Stack Web Development",
-        description: "Create complete web applications from frontend to backend",
-        difficulty: "intermediate",
-        duration: { min: 6, max: 10 }
-      },
-      {
-        id: "cloud-computing",
-        title: "Cloud Computing & DevOps",
-        description: "Deploy and manage applications in cloud environments",
-        difficulty: "intermediate",
-        duration: { min: 6, max: 9 }
-      },
-      {
-        id: "data-science",
-        title: "Data Science & Analytics",
-        description: "Extract insights from data and build predictive models",
-        difficulty: "intermediate",
-        duration: { min: 7, max: 11 }
+    const pathOptions = Object.values(learningPaths);
+    const [customPath, setCustomPath] = useState("");
+    const [showCustomInput, setShowCustomInput] = useState(false);
+
+    const handleCustomPathSelect = () => {
+      setShowCustomInput(true);
+      setCustomPath("");
+    };
+
+    const handleCustomPathSubmit = () => {
+      if (customPath.trim()) {
+        handlePathSelection(customPath.trim());
       }
-    ];
+    };
 
     return (
       <div className="min-h-screen bg-[#111111] text-white">
@@ -694,7 +717,7 @@ const AssessmentPage = () => {
                   {pathOptions.map((path) => (
                     <button
                       key={path.id}
-                      onClick={() => handlePathSelection(path.id)}
+                      onClick={() => { setShowCustomInput(false); handlePathSelection(path.id); }}
                       className="p-6 rounded-xl border-2 transition-all duration-300 text-left border-white/20 bg-white/5 hover:border-cyan-400 hover:bg-cyan-500/10"
                     >
                       <div className="flex items-start gap-4">
@@ -706,13 +729,7 @@ const AssessmentPage = () => {
                               : "bg-green-500/20"
                             }`}
                         >
-                          {path.id === "ai-ml"
-                            ? "🤖"
-                            : path.id === "fullstack-web"
-                              ? "💻"
-                              : path.id === "cloud-computing"
-                                ? "☁️"
-                                : "📊"}
+                          {getPathEmoji(path.id)}
                         </div>
                         <div className="flex-1">
                           <h4 className="font-bold text-lg mb-2 text-indigo-700 dark:text-white">
@@ -739,66 +756,62 @@ const AssessmentPage = () => {
                       </div>
                     </button>
                   ))}
-                </div>
-              </CardContent>
-            </Card>
-                          {/* Personalized Roadmap and Success Prediction UI */}
-                          {roadmap && (
-                            <div className="mb-8">
-                              <div className="flex justify-between items-center mb-4">
-                                <div>
-                                  <h1 className="text-4xl font-bold mb-2">Your Personalized Roadmap</h1>
-                                  <p className="text-gray-300">
-                                    AI-generated learning path tailored to your profile and goals
-                                  </p>
-                                </div>
-                                <div className="flex gap-3">
-                                  <button
-                                    onClick={() => (window.location.href = "/tasks")}
-                                    className="btn-secondary btn-lg flex items-center gap-2"
-                                  >
-                                    Go to Tasks
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="bg-[#181D24] rounded-3xl p-8 shadow-xl flex flex-col md:flex-row items-center justify-between">
-                                <div className="flex-1">
-                                  <h2 className="text-2xl font-bold mb-2">Success Prediction</h2>
-                                  <p className="text-gray-400 mb-4">
-                                    Based on your profile and chosen timeline, our AI predicts your success probability
-                                  </p>
-                                  <div className="flex gap-8">
-                                    <div>
-                                      <div className="text-gray-400">Total Duration</div>
-                                      <div className="text-white text-xl font-bold">{roadmap?.totalDuration} months</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-gray-400">Daily Commitment</div>
-                                      <div className="text-white text-xl font-bold">{roadmap?.personalizedSchedule?.dailyHours}h/day</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-gray-400">Study Sessions</div>
-                                      <div className="text-white text-xl font-bold">{roadmap?.personalizedSchedule?.sessionsPerDay}/day</div>
-                                    </div>
-                                    <div>
-                                      <div className="text-gray-400">Success Rate</div>
-                                      <div className="text-green-400 text-4xl font-bold">{Math.round((roadmap?.successPrediction || 0) * 100)}%</div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                  {/* Custom Path Option */}
+                  <button
+                    key="custom-path"
+                    onClick={handleCustomPathSelect}
+                    className="p-6 rounded-xl border-2 transition-all duration-300 text-left border-dashed border-cyan-400 bg-white/5 hover:border-cyan-400 hover:bg-cyan-500/10"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl bg-cyan-500/20">
+                        ✏️
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-bold text-lg mb-2 text-cyan-400 dark:text-white">
+                          Other (Write Your Own)
+                        </h4>
+                        <p className="text-sky-700 text-sm mb-3 dark:text-gray-300">
+                          Can't find your path? Click here to enter a custom one.
+                        </p>
                       </div>
                     </div>
-                  );
-                }
+                  </button>
+                </div>
+                {/* Show custom input if selected */}
+                {showCustomInput && (
+                  <div className="mt-6 flex flex-col md:flex-row items-center gap-4">
+                    <input
+                      type="text"
+                      className="flex-1 p-3 rounded-xl border-2 border-cyan-400 bg-[#181D24] text-white placeholder-gray-400 focus:border-cyan-400 focus:outline-none"
+                      placeholder="Enter your custom path (e.g. Game Development, Blockchain, etc.)"
+                      value={customPath}
+                      onChange={e => setCustomPath(e.target.value)}
+                      maxLength={60}
+                    />
+                    <Button
+                      onClick={handleCustomPathSubmit}
+                      disabled={!customPath.trim()}
+                      variant="primary"
+                      size="lg"
+                    >
+                      Select
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
-  // Goal Setup Component (now just timeline and personal needs)
+  // Goal Setup Component
   const GoalSetupStep = ({
     timeframe,
     setTimeframe,
+    personalNeeds,
+    setPersonalNeeds,
     customGoal,
     setCustomGoal,
     motivation,
@@ -822,28 +835,12 @@ const AssessmentPage = () => {
       handleGoalSetupComplete(goals);
     };
 
-    const selectedPathData = {
-      "ai-ml": { 
-        title: "AI & Machine Learning",
-        difficulty: "advanced",
-        duration: { min: 8, max: 12 }
-      },
-      "fullstack-web": { 
-        title: "Full Stack Web Development",
-        difficulty: "intermediate",
-        duration: { min: 6, max: 10 }
-      },
-      "cloud-computing": { 
-        title: "Cloud Computing & DevOps",
-        difficulty: "intermediate",
-        duration: { min: 6, max: 9 }
-      },
-      "data-science": { 
-        title: "Data Science & Analytics",
-        difficulty: "intermediate",
-        duration: { min: 7, max: 11 }
-      }
-    }[selectedPath];
+  const selectedPathData = learningPaths[selectedPath];
+  const isCustomPath = !selectedPathData && selectedPath;
+  const customTitle = isCustomPath ? selectedPath : undefined;
+  const customDescription = isCustomPath ? "You have entered a custom learning path. Our AI will personalize your journey for this topic." : undefined;
+  const customDifficulty = isCustomPath ? "custom" : undefined;
+  const customDuration = isCustomPath ? { min: 3, max: 6 } : undefined;
 
     return (
       <div className="min-h-screen bg-[#111111] text-white">
@@ -855,10 +852,9 @@ const AssessmentPage = () => {
                 Set Your Learning Timeline
               </h1>
               <p className="text-lg mb-6 text-sky-700 dark:text-gray-300">
-                You've chosen {selectedPathData?.title}. Now let's set your timeline and preferences.
+                You've chosen {selectedPathData?.title || customTitle}. Now let's set your timeline and preferences.
               </p>
             </div>
-
             {/* User Profile Summary */}
             <Card className="!bg-[#181D24] backdrop-blur-md border border-gray-700 rounded-3xl shadow-2xl mb-8">
               <CardContent className="p-6">
@@ -910,41 +906,42 @@ const AssessmentPage = () => {
                 </h3>
                 <div className="flex items-start gap-4">
                   <div
-                    className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${selectedPathData?.difficulty === "advanced"
-                      ? "bg-red-500/20"
-                      : selectedPathData?.difficulty === "intermediate"
-                        ? "bg-yellow-500/20"
-                        : "bg-green-500/20"
-                      }`}
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl ${
+                      (selectedPathData?.difficulty === "advanced" || customDifficulty === "advanced")
+                        ? "bg-red-500/20"
+                        : (selectedPathData?.difficulty === "intermediate" || customDifficulty === "intermediate")
+                          ? "bg-yellow-500/20"
+                          : (selectedPathData?.difficulty === "beginner" || customDifficulty === "beginner")
+                            ? "bg-green-500/20"
+                            : "bg-cyan-500/20"
+                    }`}
                   >
-                    {selectedPath === "ai-ml"
-                      ? "🤖"
-                      : selectedPath === "fullstack-web"
-                        ? "💻"
-                        : selectedPath === "cloud-computing"
-                          ? "☁️"
-                          : "📊"}
+                    {selectedPathData ? getPathEmoji(selectedPath) : "✏️"}
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-lg mb-2 text-indigo-700 dark:text-white">
-                      {selectedPathData?.title}
+                      {selectedPathData?.title || customTitle}
                     </h4>
                     <p className="text-sky-700 text-sm mb-3 dark:text-gray-300">
-                      {selectedPathData?.description}
+                      {selectedPathData?.description || customDescription}
                     </p>
                     <div className="flex items-center gap-4 text-xs">
                       <span
-                        className={`px-2 py-1 rounded-full ${selectedPathData?.difficulty === "advanced"
-                          ? "bg-red-500/20 text-red-400"
-                          : selectedPathData?.difficulty === "intermediate"
-                            ? "bg-yellow-500/20 text-yellow-400"
-                            : "bg-green-500/20 text-green-400"
-                          }`}
+                        className={`px-2 py-1 rounded-full ${
+                          (selectedPathData?.difficulty === "advanced" || customDifficulty === "advanced")
+                            ? "bg-red-500/20 text-red-400"
+                            : (selectedPathData?.difficulty === "intermediate" || customDifficulty === "intermediate")
+                              ? "bg-yellow-500/20 text-yellow-400"
+                              : (selectedPathData?.difficulty === "beginner" || customDifficulty === "beginner")
+                                ? "bg-green-500/20 text-green-400"
+                                : "bg-cyan-500/20 text-cyan-400"
+                        }`}
                       >
-                        {selectedPathData?.difficulty}
+                        {selectedPathData?.difficulty || customDifficulty || "custom"}
                       </span>
                       <span className="text-mint-700 dark:text-gray-400">
-                        {selectedPathData?.duration.min}-{selectedPathData?.duration.max} months
+                        {(selectedPathData?.duration?.min || customDuration?.min || 3)}-
+                        {(selectedPathData?.duration?.max || customDuration?.max || 6)} months
                       </span>
                     </div>
                   </div>

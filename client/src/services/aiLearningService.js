@@ -232,6 +232,7 @@ export const assessmentQuestions = {
 };
 
 // Learning paths configuration
+// Dynamic learning paths - easily extensible without backend changes
 export const learningPaths = {
   "ai-ml": {
     id: "ai-ml",
@@ -240,6 +241,13 @@ export const learningPaths = {
       "Build intelligent systems and work with artificial intelligence technologies",
     difficulty: "advanced",
     duration: { min: 8, max: 12 },
+    category: "Technology",
+    tags: [
+      "artificial-intelligence",
+      "machine-learning",
+      "deep-learning",
+      "neural-networks",
+    ],
   },
   "fullstack-web": {
     id: "fullstack-web",
@@ -247,6 +255,8 @@ export const learningPaths = {
     description: "Create complete web applications from frontend to backend",
     difficulty: "intermediate",
     duration: { min: 6, max: 10 },
+    category: "Development",
+    tags: ["web-development", "frontend", "backend", "databases"],
   },
   "cloud-computing": {
     id: "cloud-computing",
@@ -254,6 +264,8 @@ export const learningPaths = {
     description: "Deploy and manage applications in cloud environments",
     difficulty: "intermediate",
     duration: { min: 6, max: 9 },
+    category: "Infrastructure",
+    tags: ["cloud", "devops", "aws", "kubernetes", "docker"],
   },
   "data-science": {
     id: "data-science",
@@ -261,7 +273,102 @@ export const learningPaths = {
     description: "Extract insights from data and build predictive models",
     difficulty: "intermediate",
     duration: { min: 7, max: 11 },
+    category: "Analytics",
+    tags: ["data-analysis", "statistics", "python", "visualization"],
   },
+  // Easy to add new paths here - no backend changes needed
+  "mobile-development": {
+    id: "mobile-development",
+    title: "Mobile App Development",
+    description: "Build native and cross-platform mobile applications",
+    difficulty: "intermediate",
+    duration: { min: 6, max: 10 },
+    category: "Development",
+    tags: ["mobile", "react-native", "flutter", "ios", "android"],
+  },
+  cybersecurity: {
+    id: "cybersecurity",
+    title: "Cybersecurity & Ethical Hacking",
+    description: "Protect systems and networks from digital attacks",
+    difficulty: "advanced",
+    duration: { min: 8, max: 12 },
+    category: "Security",
+    tags: ["security", "hacking", "penetration-testing", "network-security"],
+  },
+  "data-structures-algorithms": {
+    id: "data-structures-algorithms",
+    title: "Data Structures & Algorithms",
+    description:
+      "Master fundamental programming concepts and problem-solving techniques",
+    difficulty: "intermediate",
+    duration: { min: 4, max: 8 },
+    category: "Computer Science",
+    tags: [
+      "algorithms",
+      "data-structures",
+      "problem-solving",
+      "coding-interviews",
+    ],
+  },
+  "system-design": {
+    id: "system-design",
+    title: "System Design & Architecture",
+    description: "Design scalable and robust distributed systems",
+    difficulty: "advanced",
+    duration: { min: 6, max: 10 },
+    category: "Architecture",
+    tags: [
+      "system-design",
+      "scalability",
+      "microservices",
+      "distributed-systems",
+    ],
+  },
+  "software-engineering": {
+    id: "software-engineering",
+    title: "Software Engineering & Best Practices",
+    description:
+      "Learn professional software development methodologies and practices",
+    difficulty: "intermediate",
+    duration: { min: 5, max: 9 },
+    category: "Engineering",
+    tags: [
+      "software-engineering",
+      "agile",
+      "testing",
+      "clean-code",
+      "project-management",
+    ],
+  },
+  "stock-market-trading": {
+    id: "stock-market-trading",
+    title: "Stock Market & Financial Trading",
+    description:
+      "Learn investment strategies, market analysis, and trading fundamentals",
+    difficulty: "beginner",
+    duration: { min: 3, max: 6 },
+    category: "Finance",
+    tags: [
+      "stock-market",
+      "trading",
+      "investment",
+      "financial-analysis",
+      "portfolio-management",
+    ],
+  },
+};
+
+// Utility functions for dynamic path management
+export const getAvailablePaths = () => {
+  return Object.values(learningPaths);
+};
+
+export const getPathById = (pathId) => {
+  return learningPaths[pathId] || null;
+};
+
+export const getPathTitles = () => {
+  return Object.values(learningPaths).map((path) => path.title);
 };
 
 // AI Assistant utilities
@@ -293,6 +400,7 @@ export async function saveAssessmentAnswers({
   personalize,
   duration,
   path,
+  pathMetadata,
   token,
 }) {
   const response = await fetch(
@@ -303,7 +411,13 @@ export async function saveAssessmentAnswers({
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ answers, personalize, duration, path }),
+      body: JSON.stringify({
+        answers,
+        personalize,
+        duration,
+        path,
+        pathMetadata, // Include metadata for analytics and future features
+      }),
     }
   );
   if (!response.ok) {

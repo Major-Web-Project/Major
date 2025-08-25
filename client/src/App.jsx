@@ -65,16 +65,10 @@ function App() {
       try {
         const legacyFiles = checkForLegacyFiles();
         if (legacyFiles.length > 0) {
-          console.log(`[App] Found ${legacyFiles.length} legacy files, starting auto-migration...`);
           const result = await migrateLocalStorageToIndexedDB();
-          if (result.success) {
-            console.log(`[App] Auto-migration completed: ${result.migratedCount} files migrated`);
-          } else {
-            console.warn('[App] Auto-migration failed:', result.message);
-          }
         }
       } catch (error) {
-        console.error('[App] Auto-migration error:', error);
+        // Migration error - continue silently
       }
     };
     
