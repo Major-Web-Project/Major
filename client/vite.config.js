@@ -3,11 +3,15 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import path from "path";
+import { fileURLToPath } from "url"; // <-- Import this
+
+const __filename = fileURLToPath(import.meta.url); // <-- Add this
+const __dirname = path.dirname(__filename); // <-- Add this
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: "/", // <--- CHANGE THIS LINE
+  base: "/",
   build: {
     rollupOptions: {
       output: {
@@ -35,7 +39,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./src"), // <-- This will now work correctly
     },
   },
 });
