@@ -1,3 +1,5 @@
+// In major-web-project/major/Major-newly-finally-done/client/vite.config.js
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import path from "path";
@@ -5,7 +7,7 @@ import path from "path";
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: "./",
+  base: "/", // <--- CHANGE THIS LINE
   build: {
     rollupOptions: {
       output: {
