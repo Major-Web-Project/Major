@@ -78,21 +78,6 @@ app.use(cookieParser());
 // Mount API routes
 app.use("/api", apiRoutes);
 
-// Serve frontend in production
-if (process.env.NODE_ENV === "production") {
-  const clientBuildPath = path.join(__dirname, "..", "frontend", "dist");
-  app.use(express.static(clientBuildPath));
-
-  // Catch-all handler to serve index.html for client-side routing
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(clientBuildPath, "index.html"));
-  });
-} else {
-  app.get("/", (req, res) => {
-    res.send("API is running in development mode...");
-  });
-}
-
 // 404 and Error Handling Middleware
 app.use(notFound);
 app.use(errorHandler);
@@ -138,4 +123,4 @@ const startServer = async () => {
 
 startServer();
 
-// module.exports = app;
+export default app;
