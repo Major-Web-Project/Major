@@ -1,0 +1,25 @@
+# Node modules and build output
+node_modules/
+dist/
+build/
+.vite/
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+*.test.js
+*.test.jsx
+*.test.ts
+*.test.tsx
+
+# Local setup
+LOCAL_SETUP.md
