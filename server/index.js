@@ -28,16 +28,23 @@ app.use(
   })
 );
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.PRODUCTION_DOMAIN,
+].filter(Boolean);
+
 const corsOptions = {
   credentials: true,
   optionsSuccessStatus: 200,
-  origin:
-    process.env.NODE_ENV === "production"
-      ? [process.env.CLIENT_URL, process.env.PRODUCTION_DOMAIN].filter(Boolean)
-      : [
-          process.env.CLIENT_URL ||
-            "https://infinite-learning-ov5eao4vo-meet-maheshwaris-projects.vercel.app",
-        ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error("Not allowed by CORS"));
+    }
+  },
 };
 app.use(cors(corsOptions));
 

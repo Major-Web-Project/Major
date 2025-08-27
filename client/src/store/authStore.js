@@ -29,23 +29,27 @@ export const useAuthStore = create(
           return { user, token };
         } catch (error) {
           // Provide user-friendly error messages
-          let errorMessage = 'Login failed. Please try again.';
-          
+          let errorMessage = "Login failed. Please try again.";
+
           if (error.response?.status === 401) {
-            errorMessage = error.response?.data?.message || 'Invalid email or password.';
+            errorMessage =
+              error.response?.data?.message || "Invalid email or password.";
           } else if (error.response?.status === 422) {
-            errorMessage = error.response?.data?.message || 'Please check your input and try again.';
+            errorMessage =
+              error.response?.data?.message ||
+              "Please check your input and try again.";
           } else if (error.response?.status >= 500) {
-            errorMessage = 'Server error. Please try again later.';
+            errorMessage = "Server error. Please try again later.";
           } else if (!error.response) {
-            errorMessage = 'Network error. Please check your connection and try again.';
+            errorMessage =
+              "Network error. Please check your connection and try again.";
           }
-          
+
           // Create a new error with user-friendly message
           const userError = new Error(errorMessage);
           userError.response = error.response;
           userError.originalError = error;
-          
+
           throw userError;
         }
       },
@@ -64,23 +68,28 @@ export const useAuthStore = create(
           return { user, token };
         } catch (error) {
           // Provide user-friendly error messages
-          let errorMessage = 'Signup failed. Please try again.';
-          
+          let errorMessage = "Signup failed. Please try again.";
+
           if (error.response?.status === 409) {
-            errorMessage = error.response?.data?.message || 'An account with this email already exists.';
+            errorMessage =
+              error.response?.data?.message ||
+              "An account with this email already exists.";
           } else if (error.response?.status === 422) {
-            errorMessage = error.response?.data?.message || 'Please check your input and try again.';
+            errorMessage =
+              error.response?.data?.message ||
+              "Please check your input and try again.";
           } else if (error.response?.status >= 500) {
-            errorMessage = 'Server error. Please try again later.';
+            errorMessage = "Server error. Please try again later.";
           } else if (!error.response) {
-            errorMessage = 'Network error. Please check your connection and try again.';
+            errorMessage =
+              "Network error. Please check your connection and try again.";
           }
-          
+
           // Create a new error with user-friendly message
           const userError = new Error(errorMessage);
           userError.response = error.response;
           userError.originalError = error;
-          
+
           throw userError;
         }
       },
@@ -92,10 +101,10 @@ export const useAuthStore = create(
           console.error("Logout API call failed:", error);
         } finally {
           localStorage.removeItem("token");
-          set({ 
-            user: null, 
-            isAuthenticated: false, 
-            isAuthChecked: true // Keep as checked after logout
+          set({
+            user: null,
+            isAuthenticated: false,
+            isAuthChecked: true, // Keep as checked after logout
           });
         }
       },
@@ -103,21 +112,21 @@ export const useAuthStore = create(
       // Check authentication status with server
       checkAuth: async () => {
         const { isAuthChecked, isAuthLoading } = get();
-        
+
         // Prevent multiple simultaneous checks
         if (isAuthChecked || isAuthLoading) {
           return;
         }
 
         const token = localStorage.getItem("token");
-        
+
         // If no token, mark as checked and not authenticated
         if (!token) {
-          set({ 
-            isAuthenticated: false, 
-            user: null, 
+          set({
+            isAuthenticated: false,
+            user: null,
             isAuthChecked: true,
-            isAuthLoading: false 
+            isAuthLoading: false,
           });
           return;
         }
@@ -129,34 +138,36 @@ export const useAuthStore = create(
           const response = await api.get("/auth/me");
           const userData = response.data.data;
 
-          set({ 
-            user: userData, 
-            isAuthenticated: true, 
+          set({
+            user: userData,
+            isAuthenticated: true,
             isAuthChecked: true,
-            isAuthLoading: false 
+            isAuthLoading: false,
           });
         } catch (error) {
           console.error("Auth check failed:", error);
-          
+
           // Determine error message based on error type
-          let errorMessage = 'Authentication verification failed';
+          let errorMessage = "Authentication verification failed";
           if (error.response?.status === 401) {
-            errorMessage = 'Your session has expired. Please log in again.';
+            errorMessage = "Your session has expired. Please log in again.";
           } else if (error.response?.status >= 500) {
-            errorMessage = 'Server error during authentication check. Please try again.';
+            errorMessage =
+              "Server error during authentication check. Please try again.";
           } else if (!error.response) {
-            errorMessage = 'Network error during authentication check. Please check your connection.';
+            errorMessage =
+              "Network error during authentication check. Please check your connection.";
           }
-          
+
           // Token is invalid, remove it and clear auth state
           localStorage.removeItem("token");
-          set({ 
-            user: null, 
-            isAuthenticated: false, 
+          set({
+            user: null,
+            isAuthenticated: false,
             isAuthChecked: true,
-            isAuthLoading: false 
+            isAuthLoading: false,
           });
-          
+
           // Log the specific error for debugging
           console.error("Auth check error details:", errorMessage);
         }
@@ -182,28 +193,28 @@ export const useAuthStore = create(
       // Clear auth state (for testing or manual logout)
       clearAuth: () => {
         localStorage.removeItem("token");
-        set({ 
-          user: null, 
-          isAuthenticated: false, 
+        set({
+          user: null,
+          isAuthenticated: false,
           isAuthChecked: true,
-          isAuthLoading: false 
+          isAuthLoading: false,
         });
       },
 
       // Handle authentication failures (called by API interceptor)
-      handleAuthFailure: (errorMessage = 'Authentication failed') => {
+      handleAuthFailure: (errorMessage = "Authentication failed") => {
         // Clear token and auth state
         localStorage.removeItem("token");
-        set({ 
-          user: null, 
-          isAuthenticated: false, 
+        set({
+          user: null,
+          isAuthenticated: false,
           isAuthChecked: true,
-          isAuthLoading: false 
+          isAuthLoading: false,
         });
-        
+
         // Log the error for debugging
-        console.error('Authentication failure:', errorMessage);
-        
+        console.error("Authentication failure:", errorMessage);
+
         // Return the error message for the caller to handle
         return errorMessage;
       },
