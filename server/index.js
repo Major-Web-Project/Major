@@ -28,10 +28,11 @@ app.use(
   })
 );
 
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  process.env.PRODUCTION_DOMAIN,
-].filter(Boolean);
+// Dynamically set allowed origins for CORS based on environment
+const devOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+const prodOrigin = "https://infinite-learning-beta.vercel.app";
+const allowedOrigins =
+  process.env.NODE_ENV === "production" ? [prodOrigin] : [devOrigin];
 
 const corsOptions = {
   credentials: true,
