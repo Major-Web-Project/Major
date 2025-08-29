@@ -215,12 +215,9 @@ const sendTokenResponse = (user, statusCode, res) => {
       Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
     ),
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    secure: process.env.NODE_ENV === "production" ? true : false,
   };
-
-  if (process.env.NODE_ENV === "production") {
-    options.secure = true;
-  }
 
   const response = {
     success: true,
@@ -235,5 +232,5 @@ const sendTokenResponse = (user, statusCode, res) => {
 
   // console.log("Authentication response sent for user:", user.email); // DEBUG
 
-   res.status(statusCode).cookie("token", token, options).json(response);
+  res.status(statusCode).cookie("token", token, options).json(response);
 };
